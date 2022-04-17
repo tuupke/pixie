@@ -24,11 +24,12 @@ func btsReplace(check []byte) []byte {
 }
 
 var (
-	printerTo      = envStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
-	webhook        = envStringFb("WEBHOOK_URL", "")
-	webhookMethod  = envStringFb("WEBHOOK_METHOD", "GET")
-	webhookTimeout = envDurationFb("WEBHOOK_TIMEOUT", time.Millisecond*250)
-	mergeWebhook   = envBool("WEBHOOK_MERGE")
+	printerTo        = envStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
+	webhook          = envStringFb("WEBHOOK_URL", "")
+	webhookMethod    = envStringFb("WEBHOOK_METHOD", "GET")
+	webhookTimeout   = envDurationFb("WEBHOOK_TIMEOUT", time.Millisecond*250)
+	mergeWebhook     = envBool("WEBHOOK_MERGE")
+	ipAddressKeyname = envStringFb("WEBHOOK_IP_NAME", "team_ip_address")
 
 	pdfUnit        = envStringFb("PDF_UNIT_SIZE", "mm")
 	pdfSize        = envStringFb("PDF_PAGE_SIZE", "A4")

@@ -7,15 +7,18 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
-	"github.com/OpenPrinting/goipp"
-	"github.com/jung-kurt/gofpdf"
-	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/OpenPrinting/goipp"
+	"github.com/jung-kurt/gofpdf"
+	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/rs/zerolog/log"
 )
 
 type (
@@ -295,8 +298,8 @@ type (
 	values map[string]string
 )
 
-// requestToMap builds a values object from a request. It calls the webhook and merges the data in the request with the
-// data returned by webhook.
+// requestToMap builds a values object from a request. It calls the webhook and
+// merges the data in the request with the data returned by webhook.
 func requestToMap(request *http.Request) (keyset, values) {
 	var ms = make(values)
 	var order = make(keyset, 0, 10)
@@ -319,6 +322,14 @@ func requestToMap(request *http.Request) (keyset, values) {
 		// Call the webhook
 		var buf = new(bytes.Buffer)
 		json.NewEncoder(buf)
+
+		var err error
+		ms[ipAddressKeyname], _, err = net.SplitHostPort(request.RemoteAddr)
+		if err != nil {
+			log.Err(err).Str("remote_addr", request.RemoteAddr).Msg("could not decode remote ip address")
+			delete(ms, ipAddressKeyname)
+		}
+
 		if err := json.NewEncoder(buf).Encode(ms); err != nil {
 			// TODO log
 			goto skip
@@ -359,5 +370,7 @@ func requestToMap(request *http.Request) (keyset, values) {
 	}
 
 skip:
+	delete(ms, ipAddressKeyname)
+
 	return order, ms
 }
