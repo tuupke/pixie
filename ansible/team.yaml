@@ -135,26 +135,12 @@
 
     - name: Blacklist soundcoure
       community.general.kernel_blacklist:
-        name: soundcore
+        name: "{{ item }}"
         state: present
-        
-    - name: Blacklist snd
-      community.general.kernel_blacklist:
-        name: snd
-        state: present
-        
-    - name: Blacklist snd_pcm
-      community.general.kernel_blacklist:
-        name: snd_pcm
-        state: present
-        
-    - name: Blacklist snd_pcsp
-      community.general.kernel_blacklist:
-        name: snd_pcsp
-        state: present
-
-    - name: Blacklist pcspkr
-      community.general.kernel_blacklist:
-        name: pcspkr
-        state: present
+      loop:
+        - soundcore
+        - snd
+        - snd_pcm
+        - snd_pcsp
+        - pcspkr
         
