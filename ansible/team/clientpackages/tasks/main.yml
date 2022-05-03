@@ -1,0 +1,44 @@
+---
+- name: Remove unneeded packages
+  apt:
+    state: absent
+    pkg: "{{ removals }}"
+    autoremove: true
+  become: true
+
+- name: Combine all installable packages
+  set_fact:
+    present_client_packages: "{{ editors + ide + browsers + python + java + cfam + other }}"
+
+- name: Install everything in one run to reduce dependency calculation
+  apt:
+    state: present
+    install_recommends: false
+    pkg: "{{ present_client_packages }}"
+  become: true
+
+- name: Remove vscode repo file
+  become: true
+  file:
+    dest: /etc/apt/sources.list.d/vscode.list
+    state: absent
+  notify: Update APT cache
+
+- name: Contest specific scripts (Contestant)
+  become: true
+  copy:
+    src: "{{ item.src }}"
+    dest: "/usr/local/bin/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0755
+  loop:
+    - src: submit.py
+      dest: submit
+      name: DOMjudge submit
+    - src: my_java
+      dest: my_java
+      name: Pin JVM to 1 core for testing
+    - src: my_kotlin
+      dest: my_kotlin
+      name: Pin JVM to 1 core for testing

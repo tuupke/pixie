@@ -1,0 +1,3 @@
+#!/bin/bash
+
+taskset -c 0 kotlin -Dfile.encoding=UTF-8 -J-XX:+UseSerialGC -J-Xss64m -J-Xms1920m -J-Xmx1920m $1

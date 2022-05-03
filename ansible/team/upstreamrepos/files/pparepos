@@ -1,0 +1,3 @@
+deb [arch=amd64] https://packagecloud.io/AtomEditor/atom/any/ any main
+deb [arch=amd64] http://pc2.ecs.baylor.edu/apt focal main
+deb [arch=amd64] https://packages.microsoft.com/repos/code stable main

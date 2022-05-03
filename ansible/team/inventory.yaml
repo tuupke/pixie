@@ -1,0 +1,13 @@
+all:
+  children:
+    pixie:
+      hosts:
+        192.168.122.156
+clients:
+  children:
+    teams:
+      vars:
+        ansible_user: root
+      hosts:
+        team-42424242:
+          ansible_host: 192.168.122.156

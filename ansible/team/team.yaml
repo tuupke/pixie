@@ -1,0 +1,19 @@
+---
+- hosts: teams
+  handlers:
+    - name: Reboot into graphical
+      reboot:
+      become: false
+    - name: Remove contest users flow
+      include_tasks: tasks/remove_users.yml
+  roles:
+#    - role: upstreamrepos
+#    - role: clientpackages
+    - role: users
+#    - role: systemconfig
+    #- role: vscodeextensions
+#    - role: graphicaldesktop
+#    - role: compilersettings
+#    - role: browser
+#    - role: eclipse
+#    - role: jetbrains

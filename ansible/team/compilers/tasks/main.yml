@@ -1,0 +1,22 @@
+---
+- block:
+  - name: Set convenient my* scripts for compilation
+    when: myasscript
+    template:
+      src: mycompilation.j2
+      dest: "/usr/bin/{{ item.name }}"
+      owner: root
+      group: root
+      mode: 0775
+    loop: "{{ compiler_settings }}"
+
+  - name: Set aliases
+    when: not myasscript
+    template:
+      src: bash_aliases.j2
+      dest: /etc/skel/.bash_aliases
+      owner: root
+      group: root
+      mode: 0664
+    notify: Remove contest users flow
+  become: true

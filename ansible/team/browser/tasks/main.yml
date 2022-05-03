@@ -1,0 +1,35 @@
+---
+- name: Install the browsers
+  become: true
+  apt:
+    name:
+      - firefox
+      - chromium-browser
+    state: present
+
+- name: Set startup homepage in Firefox
+  become: true
+  template:
+    dest: /etc/firefox/syspref.js
+    src: firefox.js.j2
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set policy directory for chromium
+  become: true
+  file:
+    state: directory
+    group: root
+    owner: root
+    mode: 0755
+    path: /etc/chromium-browser/policies/managed
+
+- name: Set startup homepage in Chromium
+  become: true
+  template:
+    dest: /etc/chromium-browser/policies/managed/startup.json
+    src: chromium.json.j2
+    owner: root
+    group: root
+    mode: 0644

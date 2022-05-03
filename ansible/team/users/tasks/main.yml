@@ -1,0 +1,26 @@
+---
+- name: Create home subdirectories
+  become: true
+  loop:
+    - Desktop
+    - Documents
+  file:
+    path: "/etc/skel/{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  notify:
+    - Remove contest users flow
+
+#  meta: flush_handlers
+
+- name: Deploy contest users
+  loop: "{{ contest_users }}"
+  become: true
+  user:
+    create_home: true
+    password: "{{ item.password_plain | password_hash('sha512', contest_salt) }}"
+    name: "{{ item.name }}"
+    shell: "/bin/bash"
+    uid: "{{ item.uid }}"

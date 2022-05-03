@@ -1,0 +1,45 @@
+---
+- name: Chown eclipse skel
+  file:
+    recurse: true
+    owner: root
+    group: root
+    path: /etc/skel/workspace/.metadata
+
+- name: Remove contest users
+  become: true
+  user:
+    name: "{{ item.name }}"
+    state: absent
+  loop: "{{ contest_users }}"
+
+- name: Remove contest users homedrive
+  become: true
+  file:
+    path: "/home/{{ item.name }}"
+    state: absent
+  loop: "{{ contest_users }}"
+
+- name: Update APT cache
+  become: true
+  apt:
+    update_cache: true
+
+- name: restart systemctl
+  become: true
+  command: systemctl daemon-reload
+
+- name: enable and restart tune_cpu
+  become: true
+  service:
+    name: tune_cpu
+    enabled: true
+    state: restarted
+
+- name: sync_skel
+  become: true
+  command: "rsync -ra --delete /home/{{ ansible_user }}/.vscode/extensions /etc/skel/.vscode/"
+
+- name: Disable vscode vscode_extensions
+  command: sudo -u test code --disable-extension {{ item }}
+  loop: "{{ vscode_disabled }}"

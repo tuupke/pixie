@@ -1,0 +1,10 @@
+---
+contest_users:
+  - name: "contest"
+    password_plain: "caution-leggings"
+    uid: "1010"
+  - name: "test"
+    password_plain: "majority-repent"
+    uid: "1011"
+
+contest_salt: SOMETHING

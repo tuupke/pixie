@@ -1,0 +1,2 @@
+Acquire::https::pc2.ecs.baylor.edu::Verify-Peer "false";
+Acquire::https::pc2.ecs.baylor.edu::Verify-Host "false";

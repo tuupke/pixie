@@ -1,0 +1,16 @@
+myasscript: true
+compiler_settings:
+  - name: mygcc
+    setting: gcc -x c -Wall -Wextra -O2 -std=gnu11 -static -pipe "$@" -lm
+  - name: myg++
+    setting: g++ -x c++ -Wall -Wextra -O2 -std=gnu++17 -static -pipe "$@"
+  - name: myjavac
+    setting: javac -encoding UTF-8 -sourcepath . -d . "$@"
+  - name: myjava
+    setting: java -Dfile.encoding=UTF-8 -XX:+UseSerialGC -Xss128m -Xms1856m -Xmx1856m "$@"
+  - name: mykotlinc
+    setting: kotlinc -d . "$@"
+  - name: mykotlin
+    setting: kotlin -Dfile.encoding=UTF-8 -J-XX:+UseSerialGC -J-Xss128m -J-Xms1856m -J-Xmx1856m "$@"
+  - name: mypython3
+    setting: pypy3 "$@"
