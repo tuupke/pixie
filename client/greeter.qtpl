@@ -1,0 +1,18 @@
+{% package main %}
+
+{% func (g greeterOptions) Generate() %}
+[General]
+{% if g.background != "" %}
+greeter-background-image={%q= g.background %}
+{% endif %},
+
+;loginform-offset-x=50%
+;loginform-offset-y=50%
+loginform-show-input-chain={%q= %}
+ccs-contest-api-url={{.apiUrl  }}
+ccs-autologin-username={{.username}}
+;{{ contest_users.0.name }}
+ccs-autologin-password=test
+;{{ password_plain }}
+ccs-start-minimum-msec=500
+{% endfunc %}

@@ -4,12 +4,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
 
 	githttp "github.com/AaronO/go-git-http"
+	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/hashicorp/mdns"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/afero"
+
+	"github.com/tuupke/pixie/beanstalk"
+	"github.com/tuupke/pixie/packets"
 )
 
 // btsReplace takes a byte string and converts it to the representation used in CUPS
@@ -45,11 +52,19 @@ var (
 	pdfBottomMargin = float64(envIntFb("PDF_BOTTOM_MARGIN", 6))
 	pdfLineHeight   = float64(envIntFb("PDF_LINE_HEIGHT", 8))
 
+	keyLength = envIntFb("RSA_KEY_LENGTH", 1024)
+
 	listen = envStringFb("LISTEN_ADDR", ":6632")
 
 	ansibleRepoDir = envStringFb("REPO_DIR", "/tmp/repo")
 
+	domjudgeUrl = envStringFb("DOMJUDGE_URL", "https://mart:**29~what~PAIR~never~16**@judge.swerc.eu")
+
 	memFs afero.Fs
+
+	beanstalkLocation = "127.0.0.1:11300"
+
+	to = btsReplace([]byte("ipp://" + printerTo))
 )
 
 func ensureFolder(folder *string) {
@@ -57,7 +72,7 @@ func ensureFolder(folder *string) {
 
 	stat, err := os.Stat(*folder)
 
-	// If err is not nill, attempt creation
+	// If err is not nil, attempt creation
 	if err != nil {
 		// Attempt creation
 		if err = os.MkdirAll(*folder, 0755); err != nil {
@@ -83,14 +98,63 @@ func init() {
 	memFs = afero.NewMemMapFs()
 }
 
+var cId = "practice"
+
 func main() {
 	// Get git handler to serve the repo
 	git := githttp.New(ansibleRepoDir, "git")
 	http.Handle("/git", git)
 
 	// CUPS only uses a single endpoint, all requests to this handler will be rerouted to there.
-	var to = btsReplace([]byte("ipp://" + printerTo))
-	http.HandleFunc("/", cupsHandler(to))
+
+	// TODO verify whether adding "/ipp" has worked
+	http.HandleFunc("/", simpleProxy)
+
+	// http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+	// 	resp, _ := http.Get(domjudgeUrl + "/api/contests/practice/teams")
+	// 	io.Copy(writer, resp.Body)
+	// 	defer resp.Body.Close()
+	// })
+
+	_, err := netip.ParseAddrPort(beanstalkLocation)
+	if err != nil {
+		log.Fatal().Msg("cannot parse beanstalkd addr")
+	}
+
+	// Setup our service export
+	host, _ := os.Hostname()
+	info := []string{beanstalkLocation}
+	service, err := mdns.NewMDNSService(host, "_beanstalk._pixie._tcp", "progcont.", "", 8000, nil, info)
+	log.Err(err).Msg("created mDNS service")
+
+	// Create the mDNS server, defer shutdown
+	server, err := mdns.NewServer(&mdns.Config{Zone: service})
+
+	defer server.Shutdown()
+	log.Err(err).Msg("started mDNS advertisement")
+
+	// publish()
 
 	panic(http.ListenAndServe(listen, nil))
+}
+
+func publish() {
+	// Connect to beanstalk
+	conn := beanstalk.Connect("tcp", beanstalkLocation, "demeter")
+
+	b := flatbuffers.NewBuilder(128)
+
+	header, body := b.CreateString("header"), b.CreateString("body")
+	packets.NotifyStart(b)
+	packets.NotifyAddHeader(b, header)
+	packets.NotifyAddBody(b, body)
+	notif := packets.NotifyEnd(b)
+
+	packets.CommandStart(b)
+	packets.CommandAddCommandType(b, packets.CmdNotify)
+	packets.CommandAddCommand(b, notif)
+	b.Finish(packets.CommandEnd(b))
+
+	id, err := conn.Put("demeter", b.FinishedBytes(), 0, time.Duration(0), 0)
+	log.Err(err).Uint64("id", id).Msg("published")
 }

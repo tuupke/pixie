@@ -5,14 +5,18 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/base32"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/OpenPrinting/goipp"
@@ -29,118 +33,202 @@ type (
 	}
 )
 
-// cupsHandler is the handler which proxies all cups requests and fixes
-func cupsHandler(to []byte) func(writer http.ResponseWriter, request *http.Request) {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		requestedUrl := fmt.Sprintf("ipp://%s/%s", strings.TrimRight(request.Host, "/"), strings.Trim(request.URL.Path, "/"))
-		from := btsReplace([]byte(requestedUrl))
+var num = new(uint32)
 
-		bts, err := io.ReadAll(request.Body)
-		if err != nil {
-			panic(err)
+func simpleProxy(writer http.ResponseWriter, request *http.Request) {
+	n := atomic.AddUint32(num, 1)
+	requestedUrl := fmt.Sprintf("ipp://%s/%s", strings.TrimRight(request.Host, "/"), strings.Trim(request.URL.Path, "/"))
+	from := btsReplace([]byte(requestedUrl))
+
+	f, err := os.OpenFile(fmt.Sprintf("/tmp/pixie-test/req-%v-%v.txt", time.Now().Format(time.RFC3339), n), os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	// Take the body and replace to the correct url
+	bts, err := io.ReadAll(request.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Fprintf(f, `Pre
+requestUrl: %v
+newReqUrl: %v
+Headers: %v
+Body pre:
+`, request.Host, requestedUrl, request.Header)
+	f.Write(bts)
+	f.WriteString("\n--- END ---\nBody post:\n")
+	bts = bytes.Replace(bts, from, to, -1)
+
+	f.Write(bts)
+	f.WriteString("\n--- END ---\n")
+
+	// Construct new request
+	hreq, err := http.NewRequest(request.Method, "http://"+printerTo, bytes.NewReader(bts))
+	for k, values := range request.Header {
+		for _, value := range values {
+			hreq.Header.Add(k, strings.Replace(value, requestedUrl, printerTo, -1))
 		}
+	}
 
-		// Replace the url
-		bts = bytes.Replace(bts, from, to, -1)
+	hreq.Header.Set("Content-Length", strconv.Itoa(len(bts)))
 
-		// Read the message
-		var req goipp.Message
-		if err := req.DecodeBytes(bts); err != nil {
-			panic(err)
-		}
+	fmt.Fprintf(f, "Headers POST REPLACE: %v\n\n-- RESPONSE --", hreq.Header)
 
-		// In normal cases, simply proxy the request, only when a document is sent some magic is needed.
-		var b io.Reader = bytes.NewBuffer(bts)
-		if goipp.Op(req.Code) == goipp.OpSendDocument {
-			// Search for the PDF header
-			sep := bytes.Index(bts, []byte("%PDF"))
-			if sep < 0 {
-				panic("Not found!")
-			}
+	resp, err := http.DefaultClient.Do(hreq)
+	_ = hreq.Body.Close()
+	if err != nil {
+		panic(err)
+	}
 
-			var rw *io.PipeWriter
-			b, rw = io.Pipe()
+	bts, err = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
 
-			go func() {
-				if _, err := rw.Write(bts[:sep]); err != nil {
-					panic(err)
-				}
+	fmt.Fprintf(f, `Pre
+Headers: %v
+Body pre:
+`, resp.Header)
+	f.Write(bts)
+	f.WriteString("\n--- END ---\nBody post:\n")
+	bts = bytes.Replace(bts, from, to, -1)
 
-				hash := sha1.New()
-				hash.Write([]byte(request.URL.Path))
-				pdfLocation := fmt.Sprintf("%v/%s.pdf", cacheFolder, base32.StdEncoding.EncodeToString(hash.Sum(nil)))
+	f.Write(bts)
+	f.WriteString("\n--- END ---\n")
 
-				stat, stErr := os.Stat(pdfLocation)
-				var skipBuild = stErr == nil && stat != nil && time.Now().Before(stat.ModTime().Add(timeoutPdf))
-
-				// Test if the page exists and is recent enough
-				var oldPage readSeekWriter
-				oldPage, err = os.OpenFile(pdfLocation, os.O_RDWR|os.O_CREATE, 0755)
-				if err != nil {
-					skipBuild = false
-				}
-
-				// If the cached page is not there, create a buffer which can be used to store the file in
-				if oldPage == nil {
-					oldPage, err = memFs.OpenFile(pdfLocation, os.O_RDWR|os.O_CREATE, 0755)
-					if err != nil {
-						// TODO log
-						panic(err)
-					}
-
-					defer memFs.Remove(pdfLocation)
-				} else {
-					oldPage.Seek(0, 0)
-				}
-
-				pdfParts := []io.ReadSeeker{oldPage, bytes.NewReader(bts[sep:])}
-				defer oldPage.Close()
-				if !skipBuild {
-					order, mp := requestToMap(request)
-					if err := renderPage(oldPage, order, mp); err != nil {
-						// TODO log
-						pdfParts = pdfParts[1:]
-					} else if _, err := oldPage.Seek(0, 0); err != nil {
-						// TODO log
-						pdfParts = pdfParts[1:]
-					}
-				}
-
-				if err := pdfcpu.Merge(pdfParts, rw, nil); err != nil {
-					panic(err)
-				}
-
-				_ = rw.Close()
-			}()
-		}
-
-		hreq, err := http.NewRequest(request.Method, "http://"+printerTo, b)
-		for k, values := range request.Header {
-			for _, value := range values {
-				hreq.Header.Add(k, strings.Replace(value, requestedUrl, printerTo, -1))
-			}
-		}
-
-		resp, err := http.DefaultClient.Do(hreq)
-		_ = hreq.Body.Close()
-		if err != nil {
-			panic(err)
-		}
-
-		bts, err = io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		bts = bytes.Replace(bts, to, from, -1)
-
-		writer.WriteHeader(resp.StatusCode)
-		for k, values := range resp.Header {
-			for _, value := range values {
+	writer.WriteHeader(resp.StatusCode)
+	for k, values := range resp.Header {
+		for _, value := range values {
+			if k == "Content-Length" {
+				writer.Header().Set("Content-Length", strconv.Itoa(len(bts)))
+			} else {
 				writer.Header().Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
 			}
 		}
+	}
+	fmt.Fprintf(f, "Headers POST REPLACE: %v\n\n-- RESPONSE --", writer.Header())
 
-		if _, err := writer.Write(bts); err != nil {
-			panic(err)
+	if _, err := writer.Write(bts); err != nil {
+		panic(err)
+	}
+
+}
+
+// cupsHandler is the handler which proxies all cups requests and fixes
+func cupsHandler(writer http.ResponseWriter, request *http.Request) {
+	requestedUrl := fmt.Sprintf("ipp://%s/%s", strings.TrimRight(request.Host, "/"), strings.Trim(request.URL.Path, "/"))
+	from := btsReplace([]byte(requestedUrl))
+
+	bts, err := io.ReadAll(request.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	os.WriteFile(fmt.Sprintf("/tmp/pixie-test/req-%v", num), bts, 0755)
+
+	// Replace the url
+	bts = bytes.Replace(bts, from, to, -1)
+
+	// Read the message
+	var req goipp.Message
+	if err := req.DecodeBytes(bts); err != nil {
+		panic(err)
+	}
+
+	// In normal cases, simply proxy the request, only when a document is sent some magic is needed.
+	var b io.Reader = bytes.NewBuffer(bts)
+	// if goipp.Op(req.Code) == goipp.OpSendDocument && false {
+	// 	log.Debug().Msg("handling print")
+	//
+	// 	// Search for the PDF header
+	// 	sep := bytes.Index(bts, []byte("%PDF"))
+	// 	if sep < 0 {
+	// 		panic("Not found!")
+	// 	}
+	//
+	// 	var rw *io.PipeWriter
+	// 	b, rw = io.Pipe()
+	//
+	// 	go func() {
+	// 		if _, err := rw.Write(bts[:sep]); err != nil {
+	// 			panic(err)
+	// 		}
+	//
+	// 		hash := sha1.New()
+	// 		hash.Write([]byte(request.URL.Path))
+	// 		pdfLocation := fmt.Sprintf("%v/%s.pdf", cacheFolder, base32.StdEncoding.EncodeToString(hash.Sum(nil)))
+	//
+	// 		stat, stErr := os.Stat(pdfLocation)
+	// 		var skipBuild = stErr == nil && stat != nil && time.Now().Before(stat.ModTime().Add(timeoutPdf))
+	//
+	// 		// Test if the page exists and is recent enough
+	// 		var oldPage readSeekWriter
+	// 		oldPage, err = os.OpenFile(pdfLocation, os.O_RDWR|os.O_CREATE, 0755)
+	// 		if err != nil {
+	// 			skipBuild = false
+	// 		}
+	//
+	// 		// If the cached page is not there, create a buffer which can be used to store the file in
+	// 		if oldPage == nil {
+	// 			oldPage, err = memFs.OpenFile(pdfLocation, os.O_RDWR|os.O_CREATE, 0755)
+	// 			if err != nil {
+	// 				// TODO log
+	// 				panic(err)
+	// 			}
+	//
+	// 			defer memFs.Remove(pdfLocation)
+	// 		} else {
+	// 			oldPage.Seek(0, 0)
+	// 		}
+	//
+	// 		pdfParts := []io.ReadSeeker{oldPage, bytes.NewReader(bts[sep:])}
+	// 		defer oldPage.Close()
+	// 		if !skipBuild {
+	// 			order, mp := requestToMap(request)
+	// 			if err := renderPage(oldPage, order, mp); err != nil {
+	// 				// TODO log
+	// 				pdfParts = pdfParts[1:]
+	// 			} else if _, err := oldPage.Seek(0, 0); err != nil {
+	// 				// TODO log
+	// 				pdfParts = pdfParts[1:]
+	// 			}
+	// 		}
+	//
+	// 		if err := pdfcpu.Merge(pdfParts, rw, nil); err != nil {
+	// 			panic(err)
+	// 		}
+	//
+	// 		_ = rw.Close()
+	// 	}()
+	// }
+
+	hreq, err := http.NewRequest(request.Method, "http://"+printerTo, b)
+	for k, values := range request.Header {
+		for _, value := range values {
+			hreq.Header.Add(k, strings.Replace(value, requestedUrl, printerTo, -1))
 		}
+	}
+
+	resp, err := http.DefaultClient.Do(hreq)
+	_ = hreq.Body.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	bts, err = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	bts = bytes.Replace(bts, to, from, -1)
+
+	writer.WriteHeader(resp.StatusCode)
+	for k, values := range resp.Header {
+		for _, value := range values {
+			writer.Header().Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
+		}
+	}
+
+	if _, err := writer.Write(bts); err != nil {
+		panic(err)
 	}
 }
 
@@ -297,6 +385,61 @@ type (
 	keyset []string
 	values map[string]string
 )
+
+func lengthAwareReplace(body, search, replace []byte) []byte {
+	// Find where the thing starts
+	at := bytes.Index(body, search)
+	if at < 0 {
+		// Has not been found
+		return body
+	}
+
+	var res = make([]byte, 0, len(body)-len(search)+len(replace))
+	res = append(res, body[:at]...)
+	res = append(res, replace...)
+	res = append(res, body[at+len(search):]...)
+
+	// Put the length
+	binary.LittleEndian.PutUint16(res[at-2:at], uint16(len(replace)))
+	return res
+}
+
+func convertPdfIfNeeded(rs readSeekWriter) (readSeekWriter, error) {
+	i, err := pdfcpu.Info(rs, nil, nil)
+	if err != nil {
+		return rs, err
+	}
+
+	var version string
+	var search = "PDF version"
+	for _, v := range i {
+		if strings.HasPrefix(v, search) {
+			// Split off this part
+			version = v[len(search)+2:]
+			break
+		}
+	}
+
+	if version == "" {
+		// todo error
+		return rs, errors.New("version cannot be found")
+	}
+
+	if version < "1.7" {
+		// todo convert to new
+		newWriter, err := memFs.OpenFile("", os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return newWriter, err
+		}
+
+		if err := pdfcpu.Trim(rs, newWriter, nil, nil); err != nil {
+			return newWriter, err
+		}
+
+		rs = newWriter
+	}
+	return rs, nil
+}
 
 // requestToMap builds a values object from a request. It calls the webhook and
 // merges the data in the request with the data returned by webhook.

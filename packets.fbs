@@ -1,0 +1,59 @@
+namespace packets;
+
+table Banner {
+    hostname:   string;
+    identifier: [byte];
+}
+
+table Register {
+    banner: Banner;
+    public: [byte];
+    ips:    [string];
+}
+
+table Reboot {
+    /// in depicts the time.Duration to wait before reboot. Defaults to 5s
+    in: uint64 = 5000000000;
+}
+
+table Shutdown {
+    /// in depicts the time.Duration to wait before shutdown. Defaults to 5s
+    in: uint64 = 5000000000;
+}
+
+table Logout {
+    /// in depicts the time.Duration to wait before logout. Defaults to 5s
+    in: uint64 = 5000000000;
+}
+
+table Ansible {
+
+}
+
+table Notify {
+    header: string;
+    body:   string;
+}
+
+union Cmd { Register, Greeter, Files, Reboot, Logout, Shutdown, Ansible, Notify }
+
+union Resp { Register }
+
+table Command {
+    command: Cmd;
+
+    time:      uint64;
+    signature: [byte];
+}
+
+table Response {
+    response: Resp;
+
+    time: uint64;
+    signature: [byte];
+}
+
+table Welcome {
+    identifier: [byte];
+    public: [byte];
+}
