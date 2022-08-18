@@ -1,0 +1,136 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+
+	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
+	"openticket.tech/env"
+
+	"github.com/tuupke/pixie/packets"
+)
+
+func init() {
+	log.Err(settings.Load()).Msg("loaded settings")
+	log.Err(settings.Store()).Msg("stored settings")
+}
+
+type Settings struct {
+	mp  map[string]string
+	orm *gorm.DB
+}
+
+var settings = new(Settings)
+var settingsLoc = env.Get("SETTINGS_LOCATION", "./settings.fb")
+
+func (s Settings) Load() error {
+
+	f, err := os.Open(settingsLoc)
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	bts, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	ss := packets.GetRootAsSettings(bts, 0)
+	set := new(packets.Setting)
+
+	for i := 0; i < ss.SettingsLength(); i++ {
+		ss.Settings(set, i)
+		k, v := string(set.Key()), string(set.Value())
+		s[k] = v
+		log.Debug().Str("key", k).Str("value", v).Msg("loaded setting")
+	}
+
+	log.Debug().Str("filename", settingsLoc).Int("#settings", len(s)).Msg("loaded settings")
+
+	return nil
+}
+
+func (s Settings) Retrieve(k string) (v string) {
+	v, _ = s.Get(k)
+
+	return
+}
+
+func (s Settings) Has(k string) (exists bool) {
+	_, exists = s.Get(k)
+
+	return
+}
+
+func (s Settings) Get(k string) (v string, found bool) {
+	v, found = s[k]
+
+	return
+}
+
+func (s Settings) Set(k, v string) {
+	s.setRaw(k, v)
+	s.Store()
+}
+
+func (s Settings) setRaw(k, v string) {
+	s[k] = v
+	log.Err(s.Store()).Str("key", k).Str("value", v).Msg("saved settings")
+
+}
+
+type Setting struct{ k, v string }
+
+func (s Settings) SetMultiple(settings ...Setting) {
+	for _, setting := range settings {
+		s.setRaw(setting.k, setting.v)
+	}
+
+	log.Err(s.Store()).Msg("saved settings")
+}
+
+func (s Settings) Store() error {
+	f, err := os.OpenFile(settingsLoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+
+	if err != nil {
+		return fmt.Errorf("could not open settingsfile; %w", err)
+	}
+
+	defer f.Close()
+
+	b := flatbuffers.NewBuilder(1024)
+
+	var settings = make([]flatbuffers.UOffsetT, 0, len(s))
+	for k, v := range s {
+		log.Debug().Str("key", k).Str("value", v).Msg("added setting")
+
+		kFb, vFb := b.CreateSharedString(k), b.CreateSharedString(v)
+		packets.SettingStart(b)
+
+		packets.SettingAddKey(b, kFb)
+		packets.SettingAddValue(b, vFb)
+
+		settings = append(settings, packets.SettingEnd(b))
+	}
+
+	packets.SettingsStartSettingsVector(b, len(settings))
+	for _, v := range settings {
+		b.PrependUOffsetT(v)
+	}
+
+	settingsFb := b.EndVector(len(settings))
+
+	packets.SettingsStart(b)
+	packets.SettingsAddSettings(b, settingsFb)
+	b.Finish(packets.SettingsEnd(b))
+
+	_, err = f.Write(b.FinishedBytes())
+
+	log.Debug().Err(err).Str("filename", settingsLoc).Int("#settings", len(settings)).Msg("stored settings")
+	return err
+}

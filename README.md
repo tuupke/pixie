@@ -9,6 +9,11 @@ TODO
 
 ## Contest layout management
 
+### Registration
+For registration
+
+### Layout
+
 TODO
 
 ## Printing proxy

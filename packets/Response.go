@@ -9,29 +9,18 @@ import (
 type ResponseT struct {
 	Response *RespT
 	Time uint64
-	Signature []int8
 }
 
 func (t *ResponseT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	if t == nil { return 0 }
 	responseOffset := t.Response.Pack(builder)
 	
-	signatureOffset := flatbuffers.UOffsetT(0)
-	if t.Signature != nil {
-		signatureLength := len(t.Signature)
-		ResponseStartSignatureVector(builder, signatureLength)
-		for j := signatureLength - 1; j >= 0; j-- {
-			builder.PrependInt8(t.Signature[j])
-		}
-		signatureOffset = builder.EndVector(signatureLength)
-	}
 	ResponseStart(builder)
 	if t.Response != nil {
 		ResponseAddResponseType(builder, t.Response.Type)
 	}
 	ResponseAddResponse(builder, responseOffset)
 	ResponseAddTime(builder, t.Time)
-	ResponseAddSignature(builder, signatureOffset)
 	return ResponseEnd(builder)
 }
 
@@ -41,11 +30,6 @@ func (rcv *Response) UnPackTo(t *ResponseT) {
 		t.Response = rcv.ResponseType().UnPack(responseTable)
 	}
 	t.Time = rcv.Time()
-	signatureLength := rcv.SignatureLength()
-	t.Signature = make([]int8, signatureLength)
-	for j := 0; j < signatureLength; j++ {
-		t.Signature[j] = rcv.Signature(j)
-	}
 }
 
 func (rcv *Response) UnPack() *ResponseT {
@@ -115,34 +99,8 @@ func (rcv *Response) MutateTime(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(8, n)
 }
 
-func (rcv *Response) Signature(j int) int8 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.GetInt8(a + flatbuffers.UOffsetT(j*1))
-	}
-	return 0
-}
-
-func (rcv *Response) SignatureLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		return rcv._tab.VectorLen(o)
-	}
-	return 0
-}
-
-func (rcv *Response) MutateSignature(j int, n int8) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.MutateInt8(a+flatbuffers.UOffsetT(j*1), n)
-	}
-	return false
-}
-
 func ResponseStart(builder *flatbuffers.Builder) {
-	builder.StartObject(4)
+	builder.StartObject(3)
 }
 func ResponseAddResponseType(builder *flatbuffers.Builder, responseType Resp) {
 	builder.PrependByteSlot(0, byte(responseType), 0)
@@ -152,12 +110,6 @@ func ResponseAddResponse(builder *flatbuffers.Builder, response flatbuffers.UOff
 }
 func ResponseAddTime(builder *flatbuffers.Builder, time uint64) {
 	builder.PrependUint64Slot(2, time, 0)
-}
-func ResponseAddSignature(builder *flatbuffers.Builder, signature flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(signature), 0)
-}
-func ResponseStartSignatureVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
-	return builder.StartVector(1, numElems, 1)
 }
 func ResponseEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

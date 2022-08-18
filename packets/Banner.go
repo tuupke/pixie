@@ -8,21 +8,13 @@ import (
 
 type BannerT struct {
 	Hostname string
-	Identifier []int8
+	Identifier string
 }
 
 func (t *BannerT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	if t == nil { return 0 }
 	hostnameOffset := builder.CreateString(t.Hostname)
-	identifierOffset := flatbuffers.UOffsetT(0)
-	if t.Identifier != nil {
-		identifierLength := len(t.Identifier)
-		BannerStartIdentifierVector(builder, identifierLength)
-		for j := identifierLength - 1; j >= 0; j-- {
-			builder.PrependInt8(t.Identifier[j])
-		}
-		identifierOffset = builder.EndVector(identifierLength)
-	}
+	identifierOffset := builder.CreateString(t.Identifier)
 	BannerStart(builder)
 	BannerAddHostname(builder, hostnameOffset)
 	BannerAddIdentifier(builder, identifierOffset)
@@ -31,11 +23,7 @@ func (t *BannerT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 
 func (rcv *Banner) UnPackTo(t *BannerT) {
 	t.Hostname = string(rcv.Hostname())
-	identifierLength := rcv.IdentifierLength()
-	t.Identifier = make([]int8, identifierLength)
-	for j := 0; j < identifierLength; j++ {
-		t.Identifier[j] = rcv.Identifier(j)
-	}
+	t.Identifier = string(rcv.Identifier())
 }
 
 func (rcv *Banner) UnPack() *BannerT {
@@ -80,30 +68,12 @@ func (rcv *Banner) Hostname() []byte {
 	return nil
 }
 
-func (rcv *Banner) Identifier(j int) int8 {
+func (rcv *Banner) Identifier() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.GetInt8(a + flatbuffers.UOffsetT(j*1))
+		return rcv._tab.ByteVector(o + rcv._tab.Pos)
 	}
-	return 0
-}
-
-func (rcv *Banner) IdentifierLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
-	if o != 0 {
-		return rcv._tab.VectorLen(o)
-	}
-	return 0
-}
-
-func (rcv *Banner) MutateIdentifier(j int, n int8) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.MutateInt8(a+flatbuffers.UOffsetT(j*1), n)
-	}
-	return false
+	return nil
 }
 
 func BannerStart(builder *flatbuffers.Builder) {
@@ -114,9 +84,6 @@ func BannerAddHostname(builder *flatbuffers.Builder, hostname flatbuffers.UOffse
 }
 func BannerAddIdentifier(builder *flatbuffers.Builder, identifier flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(identifier), 0)
-}
-func BannerStartIdentifierVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
-	return builder.StartVector(1, numElems, 1)
 }
 func BannerEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

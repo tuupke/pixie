@@ -7,8 +7,8 @@ import (
 )
 
 type RegisterT struct {
-	Banner *BannerT
-	Ips []string
+	Banner *PingT
+	Ips []*IPT
 }
 
 func (t *RegisterT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
@@ -19,7 +19,7 @@ func (t *RegisterT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 		ipsLength := len(t.Ips)
 		ipsOffsets := make([]flatbuffers.UOffsetT, ipsLength)
 		for j := 0; j < ipsLength; j++ {
-			ipsOffsets[j] = builder.CreateString(t.Ips[j])
+			ipsOffsets[j] = t.Ips[j].Pack(builder)
 		}
 		RegisterStartIpsVector(builder, ipsLength)
 		for j := ipsLength - 1; j >= 0; j-- {
@@ -36,9 +36,11 @@ func (t *RegisterT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 func (rcv *Register) UnPackTo(t *RegisterT) {
 	t.Banner = rcv.Banner(nil).UnPack()
 	ipsLength := rcv.IpsLength()
-	t.Ips = make([]string, ipsLength)
+	t.Ips = make([]*IPT, ipsLength)
 	for j := 0; j < ipsLength; j++ {
-		t.Ips[j] = string(rcv.Ips(j))
+		x := IP{}
+		rcv.Ips(&x, j)
+		t.Ips[j] = x.UnPack()
 	}
 }
 
@@ -76,12 +78,12 @@ func (rcv *Register) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *Register) Banner(obj *Banner) *Banner {
+func (rcv *Register) Banner(obj *Ping) *Ping {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		x := rcv._tab.Indirect(o + rcv._tab.Pos)
 		if obj == nil {
-			obj = new(Banner)
+			obj = new(Ping)
 		}
 		obj.Init(rcv._tab.Bytes, x)
 		return obj
@@ -89,13 +91,16 @@ func (rcv *Register) Banner(obj *Banner) *Banner {
 	return nil
 }
 
-func (rcv *Register) Ips(j int) []byte {
+func (rcv *Register) Ips(obj *IP, j int) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.ByteVector(a + flatbuffers.UOffsetT(j*4))
+		x := rcv._tab.Vector(o)
+		x += flatbuffers.UOffsetT(j) * 4
+		x = rcv._tab.Indirect(x)
+		obj.Init(rcv._tab.Bytes, x)
+		return true
 	}
-	return nil
+	return false
 }
 
 func (rcv *Register) IpsLength() int {

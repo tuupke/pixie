@@ -9,29 +9,18 @@ import (
 type CommandT struct {
 	Command *CmdT
 	Time uint64
-	Signature []int8
 }
 
 func (t *CommandT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	if t == nil { return 0 }
 	commandOffset := t.Command.Pack(builder)
 	
-	signatureOffset := flatbuffers.UOffsetT(0)
-	if t.Signature != nil {
-		signatureLength := len(t.Signature)
-		CommandStartSignatureVector(builder, signatureLength)
-		for j := signatureLength - 1; j >= 0; j-- {
-			builder.PrependInt8(t.Signature[j])
-		}
-		signatureOffset = builder.EndVector(signatureLength)
-	}
 	CommandStart(builder)
 	if t.Command != nil {
 		CommandAddCommandType(builder, t.Command.Type)
 	}
 	CommandAddCommand(builder, commandOffset)
 	CommandAddTime(builder, t.Time)
-	CommandAddSignature(builder, signatureOffset)
 	return CommandEnd(builder)
 }
 
@@ -41,11 +30,6 @@ func (rcv *Command) UnPackTo(t *CommandT) {
 		t.Command = rcv.CommandType().UnPack(commandTable)
 	}
 	t.Time = rcv.Time()
-	signatureLength := rcv.SignatureLength()
-	t.Signature = make([]int8, signatureLength)
-	for j := 0; j < signatureLength; j++ {
-		t.Signature[j] = rcv.Signature(j)
-	}
 }
 
 func (rcv *Command) UnPack() *CommandT {
@@ -115,34 +99,8 @@ func (rcv *Command) MutateTime(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(8, n)
 }
 
-func (rcv *Command) Signature(j int) int8 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.GetInt8(a + flatbuffers.UOffsetT(j*1))
-	}
-	return 0
-}
-
-func (rcv *Command) SignatureLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		return rcv._tab.VectorLen(o)
-	}
-	return 0
-}
-
-func (rcv *Command) MutateSignature(j int, n int8) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.MutateInt8(a+flatbuffers.UOffsetT(j*1), n)
-	}
-	return false
-}
-
 func CommandStart(builder *flatbuffers.Builder) {
-	builder.StartObject(4)
+	builder.StartObject(3)
 }
 func CommandAddCommandType(builder *flatbuffers.Builder, commandType Cmd) {
 	builder.PrependByteSlot(0, byte(commandType), 0)
@@ -152,12 +110,6 @@ func CommandAddCommand(builder *flatbuffers.Builder, command flatbuffers.UOffset
 }
 func CommandAddTime(builder *flatbuffers.Builder, time uint64) {
 	builder.PrependUint64Slot(2, time, 0)
-}
-func CommandAddSignature(builder *flatbuffers.Builder, signature flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(signature), 0)
-}
-func CommandStartSignatureVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
-	return builder.StartVector(1, numElems, 1)
 }
 func CommandEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

@@ -145,7 +145,7 @@ var banner = struct {
 	Hostname   string    `json:"hostname"`
 }{
 	uuid.NewV4(),
-	hostname,
+	"",
 }
 
 func buildBanner(b *flatbuffers.Builder) flatbuffers.UOffsetT {

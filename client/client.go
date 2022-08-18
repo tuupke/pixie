@@ -1,96 +1,144 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"fyne.io/fyne/v2"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/hashicorp/mdns"
+	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
-	"go.dedis.ch/kyber/v3/pairing/bn256"
-	"go.dedis.ch/kyber/v3/sign/bls"
-	"go.dedis.ch/kyber/v3/util/random"
 
-	"github.com/tuupke/pixie/beanstalk"
 	"github.com/tuupke/pixie/packets"
-)
 
-var (
-	reserveDuration = time.Second * 5
-
-	hostname, _ = os.Hostname()
+	_ "openticket.tech/log/v2"
 )
 
 func main() {
+	s := initializeSettings()
 
-	suite := bn256.NewSuite()
-	private, public := bls.NewKeyPair(suite, random.New())
+	go func() {
+		bsAddr, err := attemptDiscovery()
+		log.Err(err).Str("bsAddr", bsAddr).Msg("discovery Result")
 
-	fmt.Println(private.MarshalBinary())
-	fmt.Println(public.MarshalBinary())
+		if bsAddr != "" {
+			s.connection.multicast.Set(bsAddr)
+		}
+	}()
 
-	n := time.Now()
-	sign, err := bls.Sign(suite, private, []byte("aaa"))
-	sin := time.Since(n)
-	fmt.Println(sign, len(sign), err, sin)
+	go func() {
+		var connected bool
+		for !connected {
+			ips := make([]string, 0, 2)
+			if ip := s.connection.environment; ip != "not set" {
+				ips = append(ips, ip)
+			}
 
-	n = time.Now()
-	for i := 0; i < 1000; i++ {
-		err = bls.Verify(suite, public, []byte("aaa"), sign)
-	}
-	sin = time.Since(n)
-	fmt.Println(err, sin/1000)
+			if ip, err := s.connection.multicast.Get(); err == nil && ip != "undiscovered" {
+				ips = append(ips, ip)
+			}
 
-	_, err = json.Marshal(banner)
-	if err != nil {
-		log.Fatal().Err(err).Msg("could not marshal banner")
-	}
+			for _, ip := range ips {
+				time.Sleep(time.Second)
+				host, port, err := net.SplitHostPort(ip)
+				log.Err(err).Str("ip", ip).Str("host", host).Str("port", port).Msg("split ip")
+				if err != nil {
+					continue
+				}
 
-	bsAddr, err := attemptDiscovery()
-	log.Err(err).Str("bsAddr", bsAddr).Msg("discovery Result")
-	requestTubes := []string{"allClients", hostname}
+				s.connection.connecting.Set(ip)
 
-	bConn := beanstalk.Connect("tcp", bsAddr, requestTubes...)
-	tubes, err := bConn.ListTubes()
-	log.Info().Err(err).Strs("requested", requestTubes).Strs("tubes", tubes).Msg("connected to beanstalk")
+				nc, err := nats.Connect(ip)
+				log.Err(err).Msg("connected to nats")
+				if err == nil {
+					s.connection.connected.Set(true)
+					connected = true
 
-	if err != nil {
-		log.Fatal().Msg("requires beanstalk connection")
-	}
+					var wg sync.WaitGroup
+					wg.Add(1)
+					_, err := nc.Subscribe(s.identifier.String()+"_welcome", func(msg *nats.Msg) {
+						ping := packets.GetRootAsPing(msg.Data, 0)
 
-	queueListen(bConn)
+						fmt.Println(string(ping.Identifier()))
+
+						msg.Sub.Unsubscribe()
+						wg.Done()
+					})
+
+					log.Err(err).Str("subject", s.identifier.String()).Msg("subscribed")
+
+					b := flatbuffers.NewBuilder(256)
+					fmt.Println("pre register")
+					b.Finish(s.register(b))
+					fmt.Println("post register")
+
+					bts := b.FinishedBytes()
+
+					nc.Publish("register-a-new-host", bts)
+					log.Debug().Bytes("registration", bts).Msg("sending registration")
+					log.Err(err).Str("subject", "register-a-new-host").Msg("published")
+
+					wg.Wait()
+					log.Info().Msg("received reply")
+
+					fyne.CurrentApp().Settings().SetTheme(newCustomTheme())
+
+					break
+				}
+				s.connection.connecting.Set("Could not connect to " + ip)
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+
+	s.start()
+
+	return
 }
 
 func attemptDiscovery() (bsAddr string, err error) {
-	serviceName := "_beanstalk._pixie._tcp"
+	serviceName := "_pixie._tcp"
+
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go func() {
-		entriesCh := make(chan *mdns.ServiceEntry)
-		p := mdns.DefaultParams(serviceName)
-		p.Domain = "progcont."
-		p.Timeout = time.Minute / 12
-		p.Entries = entriesCh
-		go func() {
-			err = mdns.Query(p)
-			log.Err(err).Msg("queried for mDNS")
-			close(p.Entries)
-		}()
 
+	go func() {
+
+		p := mdns.DefaultParams(serviceName)
+		p.Domain = "progcont"
+		p.Timeout = time.Second * 3
+		p.WantUnicastResponse = false
+		// p.DisableIPv6 = true
+		// p.Service = serviceName
 		defer wg.Done()
 
-		for entry := range entriesCh {
-			if strings.Contains(entry.Name, serviceName) {
-				bsAddr = entry.Info
-				return
-			} else {
+		for {
+			entriesCh := make(chan *mdns.ServiceEntry, 10)
+			p.Entries = entriesCh
+
+			go func() {
+				err = mdns.Query(p)
+				log.Err(err).Msg("queried for mDNS")
+				time.Sleep(time.Millisecond * 10)
+				close(entriesCh)
+			}()
+
+			for entry := range entriesCh {
+				if strings.Contains(entry.Name, serviceName) {
+					bsAddr = entry.Info
+
+					return
+				}
+
 				log.Debug().Str("name", entry.Name).Msg("received other mDNS")
 			}
+
+			time.Sleep(time.Second)
 		}
 	}()
 
@@ -101,60 +149,4 @@ func attemptDiscovery() (bsAddr string, err error) {
 	}
 
 	return
-}
-
-func queueListen(conn beanstalk.Connection) {
-	for {
-		id, body, err := conn.Reserve(reserveDuration)
-		if err != nil {
-			if !beanstalk.TimeoutErr(err) {
-				log.Err(err).Msg("subscribing")
-			}
-
-			continue
-		}
-
-		var ee interface{}
-		// Attempt to send over the chan, attempt to recover a failed chan send. Usually
-		// due to a closed channel
-		func(b []byte) {
-			defer func() {
-				ee = recover()
-			}()
-
-			unionTable := new(flatbuffers.Table)
-			request := packets.GetRootAsCommand(b, 0)
-			if request.Command(unionTable) {
-				log.Info().Stringer("command", request.CommandType()).Msg("received command")
-				switch typ := request.CommandType(); typ {
-				case packets.CmdNONE:
-					// no-op
-				case packets.CmdReboot:
-					var r = new(packets.Logout)
-					r.Init(unionTable.Bytes, unionTable.Pos)
-					reboot(time.Duration(r.In()))
-				case packets.CmdAnsible:
-					// todo
-				case packets.CmdLogout:
-					var l = new(packets.Logout)
-					l.Init(unionTable.Bytes, unionTable.Pos)
-
-					logout(time.Duration(l.In()))
-				case packets.CmdNotify:
-					var n = new(packets.Notify)
-					n.Init(unionTable.Bytes, unionTable.Pos)
-
-					notify(string(n.Header()), string(n.Body()))
-				}
-			}
-		}(body)
-
-		log.Err(err).Msg("handled message")
-		if ee != nil {
-			log.Err(conn.Release(id, 0, time.Second)).Msg("released")
-		} else {
-			log.Err(conn.Delete(id)).Msg("deleted")
-		}
-
-	}
 }

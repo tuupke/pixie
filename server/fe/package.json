@@ -1,0 +1,27 @@
+{
+  "name": "pixie",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "axios": "^0.27.2",
+    "fabric": "^5.2.1",
+    "flatbuffers": "^2.0.6",
+    "paper": "^0.12.15",
+    "pinia": "^2.0.16",
+    "primeflex": "^3.2.1",
+    "primeicons": "^5.0.0",
+    "primevue": "^3.15.0",
+    "qr-scanner": "^1.4.1",
+    "vue": "^3.2.37",
+    "vue-router": "^4.1.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^3.0.1",
+    "typescript": "^4.7.4",
+    "vite": "^3.0.1"
+  }
+}
