@@ -1,12 +1,10 @@
-package pixie
+package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +19,8 @@ import (
 	"github.com/jung-kurt/gofpdf"
 	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/afero"
+	"github.com/valyala/fasthttp"
 )
 
 type (
@@ -31,102 +31,87 @@ type (
 	}
 )
 
-var num = new(uint32)
+// btsReplace takes a byte string and converts it to the representation used in CUPS
+func btsReplace(check []byte) []byte {
+	checkLen := len(check)
+	b := make([]byte, 2+checkLen)
+	copy(b[2:], check)
 
-// func simpleProxy(writer http.ResponseWriter, request *http.Request) {
-// 	n := atomic.AddUint32(num, 1)
-// 	requestedUrl := fmt.Sprintf("ipp://%s/%s", strings.TrimRight(request.Host, "/"), strings.Trim(request.URL.Path, "/"))
-// 	from := btsReplace([]byte(requestedUrl))
-//
-// 	// f, err := os.OpenFile(fmt.Sprintf("/tmp/pixie-test/req-%v-%v.txt", time.Now().Format(time.RFC3339), n), os.O_RDWR|os.O_CREATE, 0755)
-// 	// if err != nil {
-// 	// 	panic(err)
-// 	// }
-// 	// defer f.Close()
-//
-// 	// Take the body and replace to the correct url
-// 	bts, err := io.ReadAll(request.Body)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-//
-// 	// 	fmt.Fprintf(f, `Pre
-// 	// requestUrl: %v
-// 	// newReqUrl: %v
-// 	// Headers: %v
-// 	// Body pre:
-// 	// `, request.Host, requestedUrl, request.Header)
-// 	// 	f.Write(bts)
-// 	// 	f.WriteString("\n--- END ---\nBody post:\n")
-// 	bts = bytes.Replace(bts, from, to, -1)
-//
-// 	// f.Write(bts)
-// 	// f.WriteString("\n--- END ---\n")
-//
-// 	// Construct new request
-// 	hreq, err := http.NewRequest(request.Method, "http://"+printerTo, bytes.NewReader(bts))
-// 	for k, values := range request.Header {
-// 		for _, value := range values {
-// 			hreq.Header.Add(k, strings.Replace(value, requestedUrl, printerTo, -1))
-// 		}
-// 	}
-//
-// 	hreq.Header.Set("Content-Length", strconv.Itoa(len(bts)))
-//
-// 	// fmt.Fprintf(f, "Headers POST REPLACE: %v\n\n-- RESPONSE --", hreq.Header)
-//
-// 	resp, err := http.DefaultClient.Do(hreq)
-// 	_ = hreq.Body.Close()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-//
-// 	bts, err = io.ReadAll(resp.Body)
-// 	_ = resp.Body.Close()
-//
-// 	// 	fmt.Fprintf(f, `Pre
-// 	// Headers: %v
-// 	// Body pre:
-// 	// `, resp.Header)
-// 	// 	f.Write(bts)
-// 	// 	f.WriteString("\n--- END ---\nBody post:\n")
-// 	bts = bytes.Replace(bts, from, to, -1)
-//
-// 	// f.Write(bts)
-// 	// f.WriteString("\n--- END ---\n")
-//
-// 	writer.WriteHeader(resp.StatusCode)
-// 	for k, values := range resp.Header {
-// 		for _, value := range values {
-// 			if k == "Content-Length" {
-// 				writer.Header().Set("Content-Length", strconv.Itoa(len(bts)))
-// 			} else {
-// 				writer.Header().Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
-// 			}
-// 		}
-// 	}
-// 	// fmt.Fprintf(f, "Headers POST REPLACE: %v\n\n-- RESPONSE --", writer.Header())
-//
-// 	if _, err := writer.Write(bts); err != nil {
-// 		panic(err)
-// 	}
-//
-// }
+	// Prepend bigendian length, it's encoded in two bytes
+	binary.BigEndian.PutUint16(b, uint16(checkLen))
+	return b
+}
 
-// CupsHandler is the handler which proxies all cups requests and fixes
-func CupsHandler(writer http.ResponseWriter, request *http.Request) {
-	requestedUrl := fmt.Sprintf("ipp://%s/%s", strings.TrimRight(request.Host, "/"), strings.Trim(request.URL.Path, "/"))
-	from := btsReplace([]byte(requestedUrl))
+var (
+	// num = new(uint32)
 
-	bts, err := io.ReadAll(request.Body)
+	printerTo = envStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
+	// webhook          = envStringFb("WEBHOOK_URL", "")
+	// webhookMethod    = envStringFb("WEBHOOK_METHOD", "GET")
+	// webhookTimeout   = envDurationFb("WEBHOOK_TIMEOUT", time.Millisecond*250)
+	// mergeWebhook     = envBool("WEBHOOK_MERGE")
+	ipAddressKeyname = envStringFb("WEBHOOK_IP_NAME", "team_ip_address")
+	cupsListen       = envStringFb("CUPS_ADDR", "ppp:6631")
+
+	pdfUnit        = envStringFb("PDF_UNIT_SIZE", "mm")
+	pdfSize        = envStringFb("PDF_PAGE_SIZE", "A4")
+	pdfFontDir     = envString("PDF_FONT_DIR")
+	pdfInLandscape = envBool("PDF_LANDSCAPE")
+	timeoutPdf     = envDurationFb("PDF_REFRESH_DURATION", time.Minute*5)
+	cacheFolder    = envStringFb("IPP_CACHE_DIR", "/tmp/pixie/")
+
+	imgDpi = float64(envIntFb("IMAGE_PPI", 120))
+
+	pdfLeftMargin   = float64(envIntFb("PDF_LEFT_MARGIN", 10))
+	pdfTopMargin    = float64(envIntFb("PDF_TOP_MARGIN", 15))
+	pdfBottomMargin = float64(envIntFb("PDF_BOTTOM_MARGIN", 6))
+	pdfLineHeight   = float64(envIntFb("PDF_LINE_HEIGHT", 8))
+
+	memFs afero.Fs
+
+	to = btsReplace([]byte("ipp://" + printerTo))
+)
+
+func ensureFolder(folder *string) {
+	*folder = strings.TrimRight(*folder, "/")
+
+	stat, err := os.Stat(*folder)
+
+	// If err is not nil, attempt creation
+	if err != nil {
+		// Attempt creation
+		if err = os.MkdirAll(*folder, 0755); err != nil {
+			panic(fmt.Errorf("'%v' does not exist and can't be created; %w", *folder, err))
+		}
+
+		stat, err = os.Stat(*folder)
+	}
+
 	if err != nil {
 		panic(err)
 	}
 
-	// os.WriteFile(fmt.Sprintf("/tmp/pixie-test/req-%v", num), bts, 0755)
+	if !stat.IsDir() {
+		panic(fmt.Errorf("'%v' is not a directory", stat.Name()))
+	}
+}
+
+func init() {
+	ensureFolder(&cacheFolder)
+
+	memFs = afero.NewMemMapFs()
+}
+
+// CupsHandler is the handler which proxies all cups requests and fixes
+func CupsHandler(ctx *fasthttp.RequestCtx) {
+	path := bytes.Trim(ctx.Request.URI().Path(), "/")
+	requestedUrl := fmt.Sprintf("ipp://%s/%s", cupsListen, []byte(path))
+	from := btsReplace([]byte(requestedUrl))
+
+	btso := ctx.PostBody()
 
 	// Replace the url
-	bts = bytes.Replace(bts, from, to, -1)
+	bts := bytes.Replace(btso, from, to, -1)
 
 	// Read the message
 	var req goipp.Message
@@ -136,8 +121,14 @@ func CupsHandler(writer http.ResponseWriter, request *http.Request) {
 
 	// In normal cases, simply proxy the request, only when a document is sent some magic is needed.
 	var b io.Reader = bytes.NewBuffer(bts)
-	if goipp.Op(req.Code) == goipp.OpSendDocument && false {
-		log.Debug().Msg("handling print")
+	if goipp.Op(req.Code) == goipp.OpSendDocument {
+		remoteIp := ctx.Conn().RemoteAddr().String()
+		host, _, err := net.SplitHostPort(remoteIp)
+		log.Err(err).Str("remote", remoteIp).Str("ip", host).Msg("received print from")
+		if err != nil {
+			ctx.SetStatusCode(http.StatusInternalServerError)
+			return
+		}
 
 		// Search for the PDF header
 		sep := bytes.Index(bts, []byte("%PDF"))
@@ -154,14 +145,15 @@ func CupsHandler(writer http.ResponseWriter, request *http.Request) {
 			}
 
 			hash := sha1.New()
-			hash.Write([]byte(request.URL.Path))
+			hash.Write([]byte(host))
 			pdfLocation := fmt.Sprintf("%v/%s.pdf", cacheFolder, base32.StdEncoding.EncodeToString(hash.Sum(nil)))
 
 			stat, stErr := os.Stat(pdfLocation)
-			var skipBuild = stErr == nil && stat != nil && time.Now().Before(stat.ModTime().Add(timeoutPdf))
+			skipBuild := stErr == nil && stat != nil && time.Now().Before(stat.ModTime().Add(timeoutPdf))
 
 			// Test if the page exists and is recent enough
 			var oldPage readSeekWriter
+			var err error
 			oldPage, err = os.OpenFile(pdfLocation, os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
 				skipBuild = false
@@ -183,7 +175,23 @@ func CupsHandler(writer http.ResponseWriter, request *http.Request) {
 			pdfParts := []io.ReadSeeker{oldPage, bytes.NewReader(bts[sep:])}
 			defer oldPage.Close()
 			if !skipBuild {
-				order, mp := requestToMap(request)
+				order, mp := requestToMap(ctx.Request)
+
+				var d ExternalData
+				// Load from the orm
+				err := orm.Model(Host{}).Select("external_data.*").
+					Joins("join external_data  on external_data.host_id = hosts.guid").
+					Where("hosts.primary_ip = ?", host).
+					First(&d)
+
+				if err != nil {
+					order = append(order, "username", "teamname", "teamid", "location")
+					mp["username"] = d.Username
+					mp["teamname"] = d.Teamname.String
+					mp["teamid"] = d.TeamId.String
+					mp["location"] = fmt.Sprintf("(%v, %v, %v)", d.Location.X, d.Location.Y, d.Location.Rotation)
+				}
+
 				if err := renderPage(oldPage, order, mp); err != nil {
 					// TODO log
 					pdfParts = pdfParts[1:]
@@ -201,12 +209,11 @@ func CupsHandler(writer http.ResponseWriter, request *http.Request) {
 		}()
 	}
 
-	hreq, err := http.NewRequest(request.Method, "http://"+printerTo, b)
-	for k, values := range request.Header {
-		for _, value := range values {
-			hreq.Header.Add(k, strings.Replace(value, requestedUrl, printerTo, -1))
-		}
-	}
+	hreq, err := http.NewRequest(string(ctx.Method()), "http://"+printerTo, b)
+
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
+		hreq.Header.Add(string(key), strings.Replace(string(value), requestedUrl, printerTo, -1))
+	})
 
 	resp, err := http.DefaultClient.Do(hreq)
 	_ = hreq.Body.Close()
@@ -218,14 +225,15 @@ func CupsHandler(writer http.ResponseWriter, request *http.Request) {
 	_ = resp.Body.Close()
 	bts = bytes.Replace(bts, to, from, -1)
 
-	writer.WriteHeader(resp.StatusCode)
+	ctx.SetStatusCode(resp.StatusCode)
+	// writer.WriteHeader(resp.StatusCode)
 	for k, values := range resp.Header {
 		for _, value := range values {
-			writer.Header().Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
+			ctx.Response.Header.Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
 		}
 	}
 
-	if _, err := writer.Write(bts); err != nil {
+	if _, err := ctx.Write(bts); err != nil {
 		panic(err)
 	}
 }
@@ -441,13 +449,13 @@ func convertPdfIfNeeded(rs readSeekWriter) (readSeekWriter, error) {
 
 // requestToMap builds a values object from a request. It calls the webhook and
 // merges the data in the request with the data returned by webhook.
-func requestToMap(request *http.Request) (keyset, values) {
+func requestToMap(request fasthttp.Request) (keyset, values) {
 	var ms = make(values)
 	var order = make(keyset, 0, 10)
 
 	order = append(order, "imglogo")
 
-	segments := strings.Split(strings.Trim(request.URL.Path, "/"), "/")
+	segments := strings.Split(strings.Trim(string(request.URI().Path()), "/"), "/")
 	for _, segment := range segments {
 		// Split the segment, only add if the actually is something to add
 		keyValues := strings.SplitN(segment, "=", 2)
@@ -459,58 +467,61 @@ func requestToMap(request *http.Request) (keyset, values) {
 		}
 	}
 
-	if webhook != "" {
-		// Call the webhook
-		var buf = new(bytes.Buffer)
-		json.NewEncoder(buf)
+	// Load from the orm
+	// orm.Model(ExternalData{}).Where("ip_address", "=", request.)
 
-		var err error
-		ms[ipAddressKeyname], _, err = net.SplitHostPort(request.RemoteAddr)
-		if err != nil {
-			log.Err(err).Str("remote_addr", request.RemoteAddr).Msg("could not decode remote ip address")
-			delete(ms, ipAddressKeyname)
-		}
+	// if webhook != "" {
+	// 	// Call the webhook
+	// 	var buf = new(bytes.Buffer)
+	// 	json.NewEncoder(buf)
+	//
+	// 	var err error
+	// 	ms[ipAddressKeyname], _, err = net.SplitHostPort(request.RemoteAddr)
+	// 	if err != nil {
+	// 		log.Err(err).Str("remote_addr", request.RemoteAddr).Msg("could not decode remote ip address")
+	// 		delete(ms, ipAddressKeyname)
+	// 	}
+	//
+	// 	if err := json.NewEncoder(buf).Encode(ms); err != nil {
+	// 		// TODO log
+	// 		goto skip
+	// 	}
+	//
+	// 	ctx, cancel := context.WithTimeout(ctx, webhookTimeout)
+	// 	defer cancel()
+	//
+	// 	// Call the webhook
+	// 	req, err := http.NewRequestWithContext(ctx, webhookMethod, webhook, buf)
+	// 	if err != nil {
+	// 		// TODO log
+	// 		goto skip
+	// 	}
+	//
+	// 	_ = req.Body.Close()
+	// 	req.Header.Set("content-type", "application/json")
+	// 	resp, err := http.DefaultClient.Do(req)
+	// 	if err != nil {
+	// 		// TODO log
+	// 		goto skip
+	// 	}
+	//
+	// 	defer resp.Body.Close()
+	// 	var mm map[string]string
+	// 	if err := json.NewDecoder(resp.Body).Decode(&mm); err != nil {
+	// 		// TODO log
+	// 		goto skip
+	// 	}
+	//
+	// 	if mergeWebhook {
+	// 		for k, v := range mm {
+	// 			ms[k] = v
+	// 		}
+	// 	} else {
+	// 		ms = mm
+	// 	}
+	// }
 
-		if err := json.NewEncoder(buf).Encode(ms); err != nil {
-			// TODO log
-			goto skip
-		}
-
-		ctx, cancel := context.WithTimeout(request.Context(), webhookTimeout)
-		defer cancel()
-
-		// Call the webhook
-		req, err := http.NewRequestWithContext(ctx, webhookMethod, webhook, buf)
-		if err != nil {
-			// TODO log
-			goto skip
-		}
-
-		_ = req.Body.Close()
-		req.Header.Set("content-type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			// TODO log
-			goto skip
-		}
-
-		defer resp.Body.Close()
-		var mm map[string]string
-		if err := json.NewDecoder(resp.Body).Decode(&mm); err != nil {
-			// TODO log
-			goto skip
-		}
-
-		if mergeWebhook {
-			for k, v := range mm {
-				ms[k] = v
-			}
-		} else {
-			ms = mm
-		}
-	}
-
-skip:
+	// skip:
 	delete(ms, ipAddressKeyname)
 
 	return order, ms

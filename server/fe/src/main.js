@@ -20,6 +20,7 @@ import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Row from 'primevue/row';                     //optional for row
 import Team from '@/components/Team.vue'
+import TeamTable from '@/components/Layout/TeamTable.vue'
 
 
 import 'primevue/resources/themes/saga-blue/theme.css'       //theme
@@ -27,6 +28,7 @@ import 'primevue/resources/primevue.min.css'                 //core css
 import 'primeicons/primeicons.css'                           //icons
 import 'primeflex/primeflex.css';
 import Card from 'primevue/card';
+import Slider from "primevue/slider";
 
 const app = createApp(App);
 
@@ -50,5 +52,7 @@ app.component('DataTable', DataTable)
 app.component('Column', Column)
 app.component('Row', Row)
 app.component('Team', Team)
+app.component('TeamTable', TeamTable)
+app.component('Slider', Slider)
 
 app.mount('#app')

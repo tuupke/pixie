@@ -1,4 +1,4 @@
-package main
+package pixie
 
 import (
 	"errors"
@@ -102,6 +102,14 @@ func (s *Settings) Retrieve(k string) (v string) {
 	return
 }
 
+func (s *Settings) Fallback(k, fb string) (v string) {
+	var found bool
+	if v, found = s.Get(k); !found {
+		v = fb
+	}
+	return
+}
+
 func (s *Settings) Has(k string) (exists bool) {
 	var setting []Setting
 	((*gorm.DB)(s)).Model(Setting{}).Where(clause.IN{
@@ -140,7 +148,7 @@ func (s *Settings) Set(k string, v []byte) {
 		Value: v,
 	}
 
-	orm.Model(setting).Clauses(clause.OnConflict{
+	(*gorm.DB)(s).Model(setting).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "key"}},
 		DoUpdates: clause.AssignmentColumns([]string{"value"}),
 	}).Create(setting)

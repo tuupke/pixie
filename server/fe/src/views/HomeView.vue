@@ -1,53 +1,7 @@
-<style>
-.teamtable rect {
-  stroke: #444;
-  stroke-width: 1;
-  stroke-dasharray: none;
-  stroke-linecap: butt;
-  stroke-dashoffset: 0;
-  stroke-linejoin: miter;
-  stroke-miterlimit: 4;
-  fill-rule: nonzero;
-  opacity: 1;
-
-  fill: #fff;
-}
-
-.aisle {
-  stroke: #aaa;
-  stroke-width: 1;
-}
-
-.selectedteam rect {
-  stroke-width: 2;
-}
-
-.teamtable.found rect {
-  fill: orange;
-}
-
-.teamtable.found.exists  rect {
-  fill: lightgreen;
-}
-
-.teamtable.noteam rect {
-  opacity: 0.3;
-}
-
-.teamtable:hover rect {
-  stroke-width: 3;
-}
-
-.printer, .problem {
-  fill: #aaa;
-}
-
-</style>
-
 <template>
   <Toolbar class="col-12">
     <template #start>
-      <FileUpload class="p-button-danger mr-2" mode='basic' name="files" url="http://localhost:4000/api/tim-json"
+      <FileUpload class="p-button-danger mr-2" mode='basic' name="files" url="/api/tim-json"
                   :auto="true" :multiple="true"
                   chooseLabel="Tim JSON upload" :fileLimit="4" accept="application/json" @upload="reloadSettings"/>
 
@@ -61,18 +15,72 @@
     </template>
   </Toolbar>
 
-  <Card v-if="teamsStore.hasLocations" class="col-9">
+  <Card v-if="teamsStore.hasLocations" class="col-12">
     <template #title>
       Contest layout and registration
     </template>
     <template #content>
       <svg :viewBox="viewBox()" id="layoutsvg" @click="clearTeam(null, true)">
+        <component :is="'style'">
+          .teamtable rect {
+            stroke: #444;
+            stroke-width: 1;
+            stroke-dasharray: none;
+            stroke-linecap: butt;
+            stroke-dashoffset: 0;
+            stroke-linejoin: miter;
+            stroke-miterlimit: 4;
+            fill-rule: nonzero;
+            opacity: 1;
+
+            fill: #fff;
+          }
+
+          .aisle {
+            stroke: #aaa;
+            stroke-width: 1;
+          }
+
+          .selectedteam rect {
+            stroke-width: 2;
+          }
+
+          .teamtable.found rect {
+            fill: orange;
+          }
+
+          .teamtable.found.exists  rect {
+            fill: lightgreen;
+          }
+
+          .teamtable.double rect {
+            opacity: 0.2;
+          }
+
+          .teamtable.noteam rect {
+            opacity: 0.3;
+          }
+
+          .teamtable:hover rect {
+            stroke-width: 3;
+          }
+
+          .printer, .problem {
+            fill: #aaa;
+          }
+
+        </component>
         <g id="sceneroot">
           <g v-for="team in teamsStore.teams"
              :transform="matrixCalc(team.location.x,team.location.y, team.location.rotation)"
-             @click.stop="setupTeam" v-on:mouseover.stop="showTeam" v-on:mouseout.stop="clearTeam"
+             @click.stop="setupTeam" v-on:mouseover.stop="showTeam"
              :id="'team_' + team.guid"
-             :class="'teamtable ' + (team.host_id ? 'found ' : ' ')  + (settingsStore.hosts.find(e => e.guid === team.host_id) ? 'exists' : '') + (team.team ? '' : 'noteam')">
+             :class="'teamtable ' +
+             (teamsStore.teams.filter(e => e.host_id === team.host_id && e.host_id ).length > 1 ? 'double ' : '') +
+             (team.host_id ? 'found ' : '')  +
+             (settingsStore.hosts.find(e => e.guid === team.host_id) ? 'exists ' : '') +
+             (team.team ? '' : 'noteam ')
+              ">
             <g v-if="team.location.x + team.location.y + team.location.rotation > 0">
               <rect x="-20" y="-10" width="40" height="15"/>
               <text font-family="sans-serif" font-size="15" font-style="normal" x=0 y=3
@@ -108,10 +116,11 @@
         </g>
       </svg>
 
-      <img hidden src="/public/image.png" id="qrimage"/>
+<!--      <Button @click="downloadAllTeams" class="p-button-raised p-button-rounded p-button-danger">Download all</Button>-->
+<!--      <img hidden src="/public/image.png" id="qrimage"/>-->
     </template>
   </Card>
-  <Card v-else class="col-9">
+  <Card v-else class="col-12">
     <template #title>Teamlist</template>
     <template #content>
       <DataTable :scrollable="true" scrollHeight="400px" :value="teamsWithTeam"
@@ -127,7 +136,7 @@
     </template>
   </Card>
 
-  <Card class="col-3" v-if="modifyingteam.guid !== undefined">
+  <Card class="col-12" v-if="modifyingteam.guid !== undefined">
     <template #title>
       {{ modifyingteam.team ?? 'No teamname yet' }}
     </template>
@@ -184,7 +193,7 @@
 
       <div v-if="selected">
         <Button @click="callScanner" class="p-button-raised p-button-rounded p-button-danger">Scan</Button>
-        <Button v-if='scanningMode != "single"' class="p-button-raised p-button-rounded p-button-warning"
+        <Button v-if='scanningMode !== "single"' class="p-button-raised p-button-rounded p-button-warning"
                 @click="nextTeam">Next
         </Button>
         <Button v-if="modifyingteam.host_id" @click="() => {modifyingteam.host_id = null; setHost();}">Clear Host</Button>
@@ -192,7 +201,7 @@
       </div>
     </template>
   </Card>
-  <Card class="col-3" v-else>
+  <Card class="col-12" v-else>
     <template #title>
       {{ 'No team selected' }}
     </template>
@@ -206,6 +215,7 @@
 
 import axios from "axios";
 import {mapStores} from 'pinia'
+import { downloadZip } from "https://cdn.jsdelivr.net/npm/client-zip/index.js"
 
 // declare store variable
 import {settingsStore} from "../stores/settings";
@@ -233,8 +243,8 @@ export default {
       }, {
         label: 'DOMjudge',
         command: () => {
-          axios.get("http://localhost:4000/api/djTeam")
-          axios.get("http://localhost:4000/api/djProblem")
+          axios.get("/api/djTeam")
+          axios.get("/api/djProblem")
           this.reloadSettings()
           this.$toast.add({
             severity: 'success',
@@ -267,7 +277,7 @@ export default {
       document.getElementById("timJson_save").disabled = true;
       const val = document.getElementById("timJson").value;
 
-      axios.post("http://localhost:4000/api/tim-json/", val).catch(e => window.alert(e)).finally(this.teamsStore.fetchTeams())
+      axios.post("/api/tim-json/", val).catch(e => window.alert(e)).finally(this.teamsStore.fetchTeams())
     },
     matrixCalc: function (x, y, rot) {
       return `translate(${this.scale * x}, ${this.scale * y}) rotate(${90 + rot})`
@@ -319,10 +329,6 @@ export default {
       this.presentTeam($event.target ?? $event.originalEvent.target, true)
     },
     callScanner: async function () {
-      const {data} = await axios.get("http://localhost:5173/public/image.png", {
-        responseType: "Uint8Array",
-      })
-
       let that = this
 
       function handleResult(result) {
@@ -346,7 +352,9 @@ export default {
 
         let greeter = Ping.getRootAsPing(decoded)
 
-        this.modifyingteam.host_id = greeter.identifier()
+        window.alert(greeter.identifier())
+        that.modifyingteam.host_id = greeter.identifier()
+        that.setHost()
         // console.log(greeter.identifier() + ' ' + greeter.hostname())
       }
 
@@ -366,7 +374,7 @@ export default {
     setHost: function () {
       const that = this;
       window.setTimeout(function() {
-        axios.patch(`http://localhost:4000/api/external_data/${that.modifyingteam.guid}`, {
+        axios.patch(`/api/external_data/${that.modifyingteam.guid}`, {
           "host_id": that.modifyingteam.host_id
         }).then(this.reloadSettings)
       }, 300)
@@ -414,6 +422,131 @@ export default {
         this.teamsStore.fetchTeams();
       }, 500)
     },
+    downloadAllTeams: function() {
+      // backup currently selected
+      const curSel = this.modifyingteam
+      var svgEl = document.getElementById("layoutsvg");
+
+      let files = [];
+
+      for (let i in this.teamsStore.teams) {
+        console.log(this.teamsStore.teams[i])
+        const teamId = this.teamsStore.teams[i].team_id;
+
+        if (!teamId) {
+          console.log('Skipping 1')
+          continue;
+        }
+
+        const loc = this.teamsStore.teams[i].location;
+        if (!(loc.x + loc.y + loc.rotation)) {
+          console.log('Skipping 0')
+          continue;
+        }
+
+
+        const guid = this.teamsStore.teams[i].guid;
+        const el = document.getElementById('team_'+guid)
+        if (!el) {
+          console.log('Skipping 2')
+          continue
+        }
+
+        this.presentTeam(el, true)
+
+        const inp = this.svgToPng(svgEl.outerHTML, 10, '#fff')
+
+        files.push({ name: teamId+'-'+guid+".png", lastModified: new Date(), input: inp})
+      }
+
+      const blob = downloadZip(files).blob()
+
+      // make and click a temporary link to download the Blob
+      const link = document.createElement("a")
+      link.href = URL.createObjectURL(blob)
+      link.download = "pngs.zip"
+      link.click()
+      link.remove()
+
+      if (curSel) {
+        const el = document.getElementById('team_'+curSel.guid);
+        if (el) {
+          this.presentTeam(document.getElementById('team_' + curSel.guid), true)
+        }
+      }
+    },
+    svgToPng: function (svgText, margin, fill) {
+      // convert an svg text to png using the browser
+          // can use the domUrl function from the browser
+          var domUrl = window.URL || window.webkitURL || window;
+          if (!domUrl) {
+            throw new Error("(browser doesnt support this)")
+          }
+
+          // figure out the height and width from svg text
+          var match = svgText.match(/height=\"(\d+)/m);
+          var height = match && match[1] ? parseInt(match[1],10) : 200;
+          var match = svgText.match(/width=\"(\d+)/m);
+          var width = match && match[1] ? parseInt(match[1],10) : 200;
+          margin = margin || 0;
+
+          // it needs a namespace
+          if (!svgText.match(/xmlns=\"/mi)){
+            svgText = svgText.replace ('<svg ','<svg xmlns="http://www.w3.org/2000/svg" ') ;
+          }
+
+          // create a canvas element to pass through
+          var canvas = document.createElement("canvas");
+          canvas.width = height+margin*2;
+          canvas.height = width+margin*2;
+          var ctx = canvas.getContext("2d");
+
+
+          // make a blob from the svg
+          var svg = new Blob([svgText], {
+            type: "image/svg+xml;charset=utf-8"
+          });
+
+          // create a dom object for that image
+          var url = domUrl.createObjectURL(svg);
+
+          // create a new image to hold it the converted type
+          var img = new Image;
+
+          // when the image is loaded we can get it as base64 url
+          img.onload = function() {
+            // draw it to the canvas
+            ctx.drawImage(this, margin, margin);
+
+            // if it needs some styling, we need a new canvas
+            if (fill) {
+              var styled = document.createElement("canvas");
+              styled.width = canvas.width;
+              styled.height = canvas.height;
+              var styledCtx = styled.getContext("2d");
+              styledCtx.save();
+              styledCtx.fillStyle = fill;
+              styledCtx.fillRect(0,0,canvas.width,canvas.height);
+              styledCtx.strokeRect(0,0,canvas.width,canvas.height);
+              styledCtx.restore();
+              styledCtx.drawImage (canvas, 0,0);
+              canvas = styled;
+            }
+            // we don't need the original any more
+            domUrl.revokeObjectURL(url);
+            // now we can resolve the promise, passing the base64 url
+            var contents = [];
+            canvas.toBlob((bl) => {
+              contents = bl;
+            },'image/png')
+
+            return contents;
+          };
+
+          // load the image
+          img.src = url;
+      },
+
     presentTeam: function (target, override) {
       if (!override && this.selected) {
         return

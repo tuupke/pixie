@@ -9,6 +9,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -24,18 +26,20 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/valyala/fasthttp"
-	"gorm.io/driver/sqlite"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"openticket.tech/crud"
-	"openticket.tech/db"
 	"openticket.tech/env"
 	"openticket.tech/lifecycle/v2"
 	"openticket.tech/null"
 	"openticket.tech/rest/v3"
 
+	"github.com/tuupke/pixie"
 	"github.com/tuupke/pixie/packets"
 )
+
+var listenAddr = envStringFb("LISTEN_ADDR", ":4000")
 
 type wString string
 
@@ -80,11 +84,14 @@ type Host struct {
 	LastSeen   time.Time `json:"last_seen"`
 }
 
-var url = env.Get("DOMJUDGE_API_URL", "https://www.domjudge.org/demoweb/api/v4/")
 var natsHost, natsPort string
 var natsPortInt int
 var orm *gorm.DB
 var broadcastIPnet *net.IPNet
+
+func djUrl() string {
+	return strings.TrimSuffix(settings.Retrieve("domjudge"), "/") + "/"
+}
 
 func init() {
 	var err error
@@ -124,7 +131,7 @@ func init() {
 	mdnsServe(natsAddr)
 }
 
-var settings *Settings
+var settings *pixie.Settings
 
 func main() {
 	lifecycle.Finally(func() { log.Warn().Msg("Exited") })
@@ -151,14 +158,7 @@ func main() {
 		log.Fatal().Msg("nats needs to be connectable")
 	}
 
-	sql, _ := db.Conn("DB")
-	sql.Close()
-
-	orm, err = gorm.Open(sqlite.Open("./pixie.sqlite"), &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
-	log.Err(err).Msg("loaded gorm")
-	if err != nil {
-		log.Fatal().Msg("gorm must boot")
-	}
+	orm = pixie.Orm()
 
 	_, err = nc.Subscribe("register-a-new-host", func(msg *nats.Msg) {
 		log.Debug().Bytes("registration", msg.Data).Msg("received registration")
@@ -198,10 +198,31 @@ func main() {
 			}
 		}
 
+		// Find team
+		var team = new(ExternalData)
+		err = orm.Model(team).Where(crud.PrimaryKeyExpression(banner.Identifier())).First(&team).Error
+		log.Err(err).Msg("retrieved team")
+
 		packets.PingStart(b)
 		packets.PingAddHostname(b, hn)
 		packets.PingAddIdentifier(b, guid)
-		b.Finish(packets.PingEnd(b))
+		bannerOffset := packets.PingEnd(b)
+
+		var hasTeam bool
+		var teamId, teamName flatbuffers.UOffsetT
+		if err != nil && team != nil {
+			teamId = b.CreateSharedString(team.TeamId.String)
+			teamName = b.CreateSharedString(team.Teamname.String)
+			hasTeam = true
+		}
+
+		packets.WelcomeStart(b)
+		packets.WelcomeAddBanner(b, bannerOffset)
+		packets.WelcomeAddTeamId(b, teamId)
+		packets.WelcomeAddTeamName(b, teamName)
+		packets.WelcomeAddHasTeam(b, hasTeam)
+
+		b.Finish(packets.WelcomeEnd(b))
 
 		var affected int64
 		err = orm.Transaction(func(tx *gorm.DB) error {
@@ -225,7 +246,7 @@ func main() {
 
 		log.Err(err).Str("guid", id.String()).Int64("affected", affected).Msg("inserted host")
 		if err == nil {
-			err = nc.Publish(string(banner.Identifier())+"_welcome", b.FinishedBytes())
+			err = nc.Publish(string(banner.Identifier())+".welcome", b.FinishedBytes())
 			log.Err(err).Str("guid", id.String()).Msg("responded")
 		} else {
 			log.Warn().Msg("skipped welcoming this host")
@@ -234,7 +255,7 @@ func main() {
 
 	log.Err(err).Msg("subscribed to register-a-new-host")
 
-	settings = LoadSettings(orm)
+	settings = pixie.LoadSettings(orm)
 	log.Err(err).Msg("loaded settings")
 	if err != nil {
 		log.Fatal().Msg("settings must load")
@@ -252,6 +273,18 @@ func main() {
 		ModelRoutes: []crud.RouteOperation{
 			crud.DefaultOperation(crud.Single),
 			crud.DefaultOperation(crud.List),
+			{
+				Route: crud.Route{Verb: crud.VerbPost, Path: "{guid}/window"}, Handler: func(g *gorm.DB, model crud.Model, ctx *fasthttp.RequestCtx) {
+					guid := ctx.UserValue("guid").(string)
+					log.Err(nc.Publish(guid+"."+pixie.Show, nil)).Str("guid", guid).Msg("sent show")
+				},
+			},
+			{
+				Route: crud.Route{Verb: crud.VerbDelete, Path: "{guid}/window"}, Handler: func(g *gorm.DB, model crud.Model, ctx *fasthttp.RequestCtx) {
+					guid := ctx.UserValue("guid").(string)
+					log.Err(nc.Publish(guid+"."+pixie.Hide, nil)).Str("guid", guid).Msg("sent hide")
+				},
+			},
 		},
 		RelationRoutes: []crud.ModelRelationRoute{
 			{
@@ -295,6 +328,14 @@ func main() {
 		log.Fatal().Err(err).Msg("settings-controller required")
 	}
 
+	private := rest.NewRouter(crud.PanicHandler)
+	private.Any("{path:*}", CupsHandler)
+
+	_, err = rest.New(rest.Config{
+		Listen: cupsListen,
+	}, private)
+	log.Err(err).Msg("started cups proxy")
+
 	router := rest.NewRouterWithSettings(crud.PanicHandler, func(r *router.Router) {
 		r.RedirectTrailingSlash = true
 		r.SaveMatchedRoutePath = true
@@ -321,28 +362,38 @@ func main() {
 	})
 
 	router.Group("", func() {
-		dashboardLocation := "fe/dist"
-		dashboardFs := fasthttp.FS{
-			Root:       dashboardLocation,
-			IndexNames: []string{"index.html"},
-			PathNotFound: func(ctx *fasthttp.RequestCtx) {
-				// Attempt to load the index.html on 404
-				f, err := os.Open(fmt.Sprintf("%v/index.html", dashboardLocation))
-				if err != nil {
-					ctx.SetStatusCode(500)
-					log.Err(err).Msg("cannot find index file")
-					return
-				}
+		var pathHandler fasthttp.RequestHandler
+		if !env.Bool("IS_DEV", false) {
+			dashboardLocation := "fe/dist"
+			pathHandler = (&fasthttp.FS{
+				Root:       dashboardLocation,
+				IndexNames: []string{"index.html"},
+				PathNotFound: func(ctx *fasthttp.RequestCtx) {
+					// Attempt to load the index.html on 404
+					f, err := os.Open(fmt.Sprintf("%v/index.html", dashboardLocation))
+					if err != nil {
+						ctx.SetStatusCode(500)
+						log.Err(err).Msg("cannot find index file")
+						return
+					}
 
-				defer f.Close()
-				ctx.Response.Header.Set("content-type", "text/html")
-				ctx.SetStatusCode(200)
-				io.Copy(ctx, f)
-			},
+					defer f.Close()
+					ctx.Response.Header.Set("content-type", "text/html")
+					ctx.SetStatusCode(200)
+					io.Copy(ctx, f)
+				},
+			}).NewRequestHandler()
+		} else {
+			u, err := url.Parse("http://127.0.0.1:5173")
+			log.Err(err).Msg("parsed reverse proxy url")
+			if err != nil {
+				log.Fatal().Msg("need reverse proxy in dev mode")
+			}
+			frontendProxy := httputil.NewSingleHostReverseProxy(u)
+			pathHandler = fasthttpadaptor.NewFastHTTPHandler(frontendProxy)
 		}
 
-		router.Get("{path:*}", dashboardFs.NewRequestHandler())
-
+		router.Get("{path:*}", pathHandler)
 		router.Group("api", func() {
 
 			cc.BuildRoutes(router)
@@ -350,10 +401,38 @@ func main() {
 			hostsController.BuildRoutes(router)
 			teamsController.BuildRoutes(router)
 
+			router.Get("inventory", func(ctx *fasthttp.RequestCtx) {
+				var ansible = bytes.NewBufferString(`clients:
+  vars:
+    ansible_user: root
+  hosts:`)
+
+				var all []struct {
+					IpAddress string `gorm:"column:primary_ip"`
+					TeamName  string `gorm:"column:teamname"`
+					Host      string `gorm:"column:user_id"`
+				}
+
+				orm.Table("hosts").
+					Joins("join external_data  on external_data.host_id = hosts.guid").
+					Select("hosts.primary_ip", "external_data.user_id", "external_data.teamname").
+					Find(&all)
+
+				for _, e := range all {
+					ansible.WriteString(fmt.Sprintf(`
+    %v:
+      ansible_host: %v
+      team_name_dj: "%v"`, e.Host, e.IpAddress, e.TeamName))
+				}
+
+				ctx.WriteString(ansible.String())
+				// crud.Respond(ctx, ansible.String())
+			})
+
 			router.Get("contests", func(ctx *fasthttp.RequestCtx) {
 				lg := rest.LoggerFromRequest(ctx)
 
-				req, _ := http.NewRequest(http.MethodGet, url+"contests", nil)
+				req, _ := http.NewRequest(http.MethodGet, djUrl()+"contests", nil)
 				req.SetBasicAuth(ctx.UserValue("user").(string), ctx.UserValue("pass").(string))
 
 				resp, err := http.DefaultClient.Do(req)
@@ -433,8 +512,9 @@ func main() {
 							djTeamLoad(ctx)
 
 							var locations []struct {
-								Tid string `json:"id" gorm:"team_id"`
-								ExternalData
+								crud.SimpleBaseModel
+								Tid      string  `json:"id" gorm:"column:team_id"`
+								Location Rotated `json:"location" gorm:"embedded;embeddedPrefix:loc_"`
 							}
 
 							err := json.NewDecoder(f).Decode(&locations)
@@ -443,24 +523,15 @@ func main() {
 								return err
 							}
 
-							var teams = make([]ExternalData, len(locations))
-							for k := range locations {
-								teams[k] = locations[k].ExternalData
-								teams[k].TeamId = null.Filled(locations[k].Tid)
-							}
+							scoped := orm.Table("external_data").Clauses(clause.OnConflict{
+								Columns:   []clause.Column{{Name: "team_id"}},
+								DoUpdates: clause.AssignmentColumns([]string{"loc_x", "loc_y", "loc_rotation"}),
+							}).Create(locations)
 
-							var affected int64
-							err = orm.Transaction(func(tx *gorm.DB) error {
-								scoped := tx.Model(&ExternalData{}).Clauses(clause.OnConflict{
-									Columns:   []clause.Column{{Name: "team_id"}},
-									DoUpdates: clause.AssignmentColumns([]string{"loc_x", "loc_y", "loc_rotation"}),
-								}).Create(teams)
+							err = scoped.Error
+							rowsAffected := scoped.RowsAffected
 
-								affected = scoped.RowsAffected
-								return scoped.Error
-							})
-
-							log.Err(err).Int64("rowsaffected", affected).Msg("upserted")
+							log.Err(err).Int64("affected", rowsAffected).Msg("upserted")
 							return err
 						},
 					}
@@ -492,14 +563,17 @@ func main() {
 		})
 	}, basicAuth)
 
+	var tls *rest.TLS
+	if cert, key := envString("SSL_CERT"), envString("SSL_KEY"); cert+key != "" {
+		tls = &rest.TLS{
+			PrivateKey:  key,
+			Certificate: cert,
+		}
+	}
+
 	_, err = rest.New(rest.Config{
-		Listen: ":4000",
-		// Customize: func(server *fasthttp.Server) error {
-		// },
-		// TLS: &rest.TLS{
-		// 	PrivateKey:  "/home/mart/eventix/goproxy/ssl/eventix.key.pem",
-		// 	Certificate: "/home/mart/eventix/goproxy/ssl/eventix.cert.pem",
-		// },
+		Listen: listenAddr,
+		TLS:    tls,
 	}, router)
 	log.Err(err).Msg("started rest")
 	if err != nil {
@@ -544,7 +618,7 @@ func basicAuth(next rest.Handle) rest.Handle {
 					// Check if we have it cached
 					if !exists || (numReqs.(uint64))%checkEvery == 0 {
 						// Do a check in Dj to see if valid
-						req, _ := http.NewRequest(http.MethodGet, url+"users", nil)
+						req, _ := http.NewRequest(http.MethodGet, djUrl()+"users", nil)
 						req.SetBasicAuth(user, pass)
 
 						resp, err := http.DefaultClient.Do(req)
@@ -612,7 +686,7 @@ func GetInternalIps() []*net.IPNet {
 func djTeamLoad(ctx *fasthttp.RequestCtx) {
 	lg := rest.LoggerFromRequest(ctx)
 
-	req, _ := http.NewRequest(http.MethodGet, url+"users", nil)
+	req, _ := http.NewRequest(http.MethodGet, djUrl()+"users", nil)
 	req.SetBasicAuth(ctx.UserValue("user").(string), ctx.UserValue("pass").(string))
 	req.Header.Add("Accept-Charset", "utf-8")
 
@@ -628,25 +702,37 @@ func djTeamLoad(ctx *fasthttp.RequestCtx) {
 	err = json.NewDecoder(resp.Body).Decode(&m)
 	lg.Err(err).Msg("decoded Dj response")
 
+	// Users without a team are useless to us, this also eliminates all non-team users
+	var mm = make([]ExternalData, 0, len(m))
+	for _, v := range m {
+		if v.TeamId.Valid {
+			mm = append(mm, v)
+		}
+	}
+	m = mm
+
 	var affected int64
 	err = orm.Transaction(func(tx *gorm.DB) error {
 		scoped := tx.Model(&ExternalData{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"username", "user_id"}),
+		}, clause.OnConflict{
 			Columns:   []clause.Column{{Name: "team_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"teamname", "username", "user_id"}),
+			DoUpdates: clause.AssignmentColumns([]string{"teamname"}),
 		}).Create(m)
 
 		affected = scoped.RowsAffected
 		return scoped.Error
 	})
 
-	lg.Err(err).Int64("rowsaffected", affected).Msg("inserted")
+	lg.Err(err).Int64("rowsaffected", affected).Msg("inserted dj")
 	crud.HandleError(ctx, http.StatusInternalServerError, fmt.Errorf("inserting into database; %w", err))
 }
 
 func djProblemLoad(ctx *fasthttp.RequestCtx) {
 	lg := rest.LoggerFromRequest(ctx)
 
-	req, _ := http.NewRequest(http.MethodGet, url+"contests/"+settings.Retrieve("contest")+"/problems", nil)
+	req, _ := http.NewRequest(http.MethodGet, djUrl()+"contests/"+settings.Retrieve("contest")+"/problems", nil)
 	req.SetBasicAuth(ctx.UserValue("user").(string), ctx.UserValue("pass").(string))
 	req.Header.Add("Accept-Charset", "utf-8")
 

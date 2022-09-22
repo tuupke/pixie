@@ -1,4 +1,4 @@
-package pixie
+package main
 
 import (
 	"os"

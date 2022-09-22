@@ -8,6 +8,14 @@ table Ping {
     identifier: string;
 }
 
+table Welcome {
+    banner: Ping;
+
+    has_team: bool;
+    team_id: string;
+    team_name: string;
+}
+
 table IP {
     ip: string;
     netmask: int;

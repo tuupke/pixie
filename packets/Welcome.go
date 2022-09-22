@@ -7,47 +7,30 @@ import (
 )
 
 type WelcomeT struct {
-	Identifier []int8
-	Public []int8
+	Banner *PingT
+	HasTeam bool
+	TeamId string
+	TeamName string
 }
 
 func (t *WelcomeT) Pack(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	if t == nil { return 0 }
-	identifierOffset := flatbuffers.UOffsetT(0)
-	if t.Identifier != nil {
-		identifierLength := len(t.Identifier)
-		WelcomeStartIdentifierVector(builder, identifierLength)
-		for j := identifierLength - 1; j >= 0; j-- {
-			builder.PrependInt8(t.Identifier[j])
-		}
-		identifierOffset = builder.EndVector(identifierLength)
-	}
-	publicOffset := flatbuffers.UOffsetT(0)
-	if t.Public != nil {
-		publicLength := len(t.Public)
-		WelcomeStartPublicVector(builder, publicLength)
-		for j := publicLength - 1; j >= 0; j-- {
-			builder.PrependInt8(t.Public[j])
-		}
-		publicOffset = builder.EndVector(publicLength)
-	}
+	bannerOffset := t.Banner.Pack(builder)
+	teamIdOffset := builder.CreateString(t.TeamId)
+	teamNameOffset := builder.CreateString(t.TeamName)
 	WelcomeStart(builder)
-	WelcomeAddIdentifier(builder, identifierOffset)
-	WelcomeAddPublic(builder, publicOffset)
+	WelcomeAddBanner(builder, bannerOffset)
+	WelcomeAddHasTeam(builder, t.HasTeam)
+	WelcomeAddTeamId(builder, teamIdOffset)
+	WelcomeAddTeamName(builder, teamNameOffset)
 	return WelcomeEnd(builder)
 }
 
 func (rcv *Welcome) UnPackTo(t *WelcomeT) {
-	identifierLength := rcv.IdentifierLength()
-	t.Identifier = make([]int8, identifierLength)
-	for j := 0; j < identifierLength; j++ {
-		t.Identifier[j] = rcv.Identifier(j)
-	}
-	publicLength := rcv.PublicLength()
-	t.Public = make([]int8, publicLength)
-	for j := 0; j < publicLength; j++ {
-		t.Public[j] = rcv.Public(j)
-	}
+	t.Banner = rcv.Banner(nil).UnPack()
+	t.HasTeam = rcv.HasTeam()
+	t.TeamId = string(rcv.TeamId())
+	t.TeamName = string(rcv.TeamName())
 }
 
 func (rcv *Welcome) UnPack() *WelcomeT {
@@ -84,72 +67,61 @@ func (rcv *Welcome) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *Welcome) Identifier(j int) int8 {
+func (rcv *Welcome) Banner(obj *Ping) *Ping {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.GetInt8(a + flatbuffers.UOffsetT(j*1))
+		x := rcv._tab.Indirect(o + rcv._tab.Pos)
+		if obj == nil {
+			obj = new(Ping)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
 	}
-	return 0
+	return nil
 }
 
-func (rcv *Welcome) IdentifierLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
+func (rcv *Welcome) HasTeam() bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
-		return rcv._tab.VectorLen(o)
-	}
-	return 0
-}
-
-func (rcv *Welcome) MutateIdentifier(j int, n int8) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.MutateInt8(a+flatbuffers.UOffsetT(j*1), n)
+		return rcv._tab.GetBool(o + rcv._tab.Pos)
 	}
 	return false
 }
 
-func (rcv *Welcome) Public(j int) int8 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
-	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.GetInt8(a + flatbuffers.UOffsetT(j*1))
-	}
-	return 0
+func (rcv *Welcome) MutateHasTeam(n bool) bool {
+	return rcv._tab.MutateBoolSlot(6, n)
 }
 
-func (rcv *Welcome) PublicLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
+func (rcv *Welcome) TeamId() []byte {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
-		return rcv._tab.VectorLen(o)
+		return rcv._tab.ByteVector(o + rcv._tab.Pos)
 	}
-	return 0
+	return nil
 }
 
-func (rcv *Welcome) MutatePublic(j int, n int8) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
+func (rcv *Welcome) TeamName() []byte {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
-		a := rcv._tab.Vector(o)
-		return rcv._tab.MutateInt8(a+flatbuffers.UOffsetT(j*1), n)
+		return rcv._tab.ByteVector(o + rcv._tab.Pos)
 	}
-	return false
+	return nil
 }
 
 func WelcomeStart(builder *flatbuffers.Builder) {
-	builder.StartObject(2)
+	builder.StartObject(4)
 }
-func WelcomeAddIdentifier(builder *flatbuffers.Builder, identifier flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(identifier), 0)
+func WelcomeAddBanner(builder *flatbuffers.Builder, banner flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(banner), 0)
 }
-func WelcomeStartIdentifierVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
-	return builder.StartVector(1, numElems, 1)
+func WelcomeAddHasTeam(builder *flatbuffers.Builder, hasTeam bool) {
+	builder.PrependBoolSlot(1, hasTeam, false)
 }
-func WelcomeAddPublic(builder *flatbuffers.Builder, public flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(public), 0)
+func WelcomeAddTeamId(builder *flatbuffers.Builder, teamId flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(teamId), 0)
 }
-func WelcomeStartPublicVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
-	return builder.StartVector(1, numElems, 1)
+func WelcomeAddTeamName(builder *flatbuffers.Builder, teamName flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(teamName), 0)
 }
 func WelcomeEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

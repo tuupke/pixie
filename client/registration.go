@@ -64,9 +64,25 @@ func (s *settings) register(b *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return packets.RegisterEnd(b)
 }
 
+func (s *settings) stop() {
+	if w == nil {
+		return
+	}
+
+	w.Hide()
+}
+
+var a fyne.App
+var w fyne.Window
+
 func (s *settings) start() {
-	a := app.New()
-	w := a.NewWindow("Pixie registration")
+	if a != nil {
+		w.Show()
+		return
+	}
+
+	a = app.New()
+	w = a.NewWindow("Pixie registration")
 
 	buf := bytes.NewBuffer(nil)
 

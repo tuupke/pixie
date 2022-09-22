@@ -13,14 +13,17 @@ import (
 	"github.com/hashicorp/mdns"
 	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
-
-	"github.com/tuupke/pixie/packets"
-
 	_ "openticket.tech/log/v2"
+
+	"github.com/tuupke/pixie"
+	"github.com/tuupke/pixie/packets"
 )
 
 func main() {
 	s := initializeSettings()
+
+	orm := pixie.Orm()
+	_ = pixie.LoadSettings(orm)
 
 	go func() {
 		bsAddr, err := attemptDiscovery()
@@ -61,13 +64,26 @@ func main() {
 
 					var wg sync.WaitGroup
 					wg.Add(1)
-					_, err := nc.Subscribe(s.identifier.String()+"_welcome", func(msg *nats.Msg) {
-						ping := packets.GetRootAsPing(msg.Data, 0)
+					_, err := nc.Subscribe(s.identifier.String()+".>", func(msg *nats.Msg) {
+						split := strings.Split(msg.Subject, ".")
+						last := split[len(split)-1]
 
-						fmt.Println(string(ping.Identifier()))
+						fmt.Println("Received", split)
 
-						msg.Sub.Unsubscribe()
-						wg.Done()
+						switch last {
+						case pixie.Welcome:
+							w := packets.GetRootAsWelcome(msg.Data, 0)
+
+							fmt.Println(w.HasTeam(), string(w.TeamId()), string(w.TeamName()))
+
+							// msg.Sub.Unsubscribe()
+							wg.Done()
+						case pixie.Show:
+							s.start()
+						case pixie.Hide:
+							s.stop()
+						}
+
 					})
 
 					log.Err(err).Str("subject", s.identifier.String()).Msg("subscribed")
@@ -97,8 +113,6 @@ func main() {
 	}()
 
 	s.start()
-
-	return
 }
 
 func attemptDiscovery() (bsAddr string, err error) {
