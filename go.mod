@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/OpenPrinting/goipp v1.0.0
-	github.com/google/flatbuffers v2.0.7+incompatible
+	github.com/google/flatbuffers v2.0.8+incompatible
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/pdfcpu/pdfcpu v0.3.12
 	github.com/rs/zerolog v1.28.0
@@ -13,6 +13,7 @@ require (
 	gorm.io/gorm v1.23.8
 	openticket.tech/crud v1.2.0
 	openticket.tech/db v1.4.0
+	openticket.tech/lifecycle/v2 v2.0.1
 )
 
 require (
@@ -68,7 +69,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.9.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
-	golang.org/x/sys v0.0.0-20220825204002-c680a09ffe64 // indirect
+	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -80,7 +81,6 @@ require (
 	openticket.tech/env v1.5.0 // indirect
 	openticket.tech/gotrus/v3 v3.0.6 // indirect
 	openticket.tech/iso8601 v1.1.1 // indirect
-	openticket.tech/lifecycle/v2 v2.0.1 // indirect
 	openticket.tech/list v1.2.0 // indirect
 	openticket.tech/log/v2 v2.2.0 // indirect
 	openticket.tech/null v1.1.0 // indirect

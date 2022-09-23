@@ -184,7 +184,7 @@ func CupsHandler(ctx *fasthttp.RequestCtx) {
 					Where("hosts.primary_ip = ?", host).
 					First(&d)
 
-				if err != nil {
+				if err == nil {
 					order = append(order, "username", "teamname", "teamid", "location")
 					mp["username"] = d.Username
 					mp["teamname"] = d.Teamname.String

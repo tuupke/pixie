@@ -275,15 +275,15 @@ func main() {
 			crud.DefaultOperation(crud.List),
 			{
 				Route: crud.Route{Verb: crud.VerbPost, Path: "{guid}/window"}, Handler: func(g *gorm.DB, model crud.Model, ctx *fasthttp.RequestCtx) {
-					guid := ctx.UserValue("guid").(string)
-					log.Err(nc.Publish(guid+"."+pixie.Show, nil)).Str("guid", guid).Msg("sent show")
-				},
+				guid := ctx.UserValue("guid").(string)
+				log.Err(nc.Publish(guid+"."+pixie.Show, nil)).Str("guid", guid).Msg("sent show")
+			},
 			},
 			{
 				Route: crud.Route{Verb: crud.VerbDelete, Path: "{guid}/window"}, Handler: func(g *gorm.DB, model crud.Model, ctx *fasthttp.RequestCtx) {
-					guid := ctx.UserValue("guid").(string)
-					log.Err(nc.Publish(guid+"."+pixie.Hide, nil)).Str("guid", guid).Msg("sent hide")
-				},
+				guid := ctx.UserValue("guid").(string)
+				log.Err(nc.Publish(guid+"."+pixie.Hide, nil)).Str("guid", guid).Msg("sent hide")
+			},
 			},
 		},
 		RelationRoutes: []crud.ModelRelationRoute{
@@ -426,7 +426,6 @@ func main() {
 				}
 
 				ctx.WriteString(ansible.String())
-				// crud.Respond(ctx, ansible.String())
 			})
 
 			router.Get("contests", func(ctx *fasthttp.RequestCtx) {
@@ -613,7 +612,7 @@ func basicAuth(next rest.Handle) rest.Handle {
 					combined = base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 					numReqs, exists := numRequests.LoadOrStore(combined, uint64(0))
 
-					var notOk bool
+					var notOk bool = true
 
 					// Check if we have it cached
 					if !exists || (numReqs.(uint64))%checkEvery == 0 {
