@@ -187,8 +187,12 @@ func CupsHandler(ctx *fasthttp.RequestCtx) {
 				if err == nil {
 					order = append(order, "username", "teamname", "teamid", "location")
 					mp["username"] = d.Username
-					mp["teamname"] = d.Teamname.String
-					mp["teamid"] = d.TeamId.String
+					if d.Teamname != nil {
+						mp["teamname"] = *d.Teamname
+					}
+					if d.TeamId != nil {
+						mp["teamid"] = *d.TeamId
+					}
 					mp["location"] = fmt.Sprintf("(%v, %v, %v)", d.Location.X, d.Location.Y, d.Location.Rotation)
 				}
 

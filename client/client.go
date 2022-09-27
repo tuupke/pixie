@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/mdns"
 	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
-	_ "openticket.tech/log/v2"
 
 	"github.com/tuupke/pixie"
 	"github.com/tuupke/pixie/packets"

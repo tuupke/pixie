@@ -34,9 +34,28 @@ func envBool(key string) bool {
 	return val && err != nil
 }
 
+func envBoolFb(key string, fb bool) bool {
+	if val, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+		return val
+	}
+
+	return fb
+}
+
 func envIntFb(key string, fb int) int {
 	str := envString(key)
 	i, err := strconv.Atoi(str)
+	if err != nil {
+		return fb
+	}
+
+	return i
+}
+
+func envUInt64Fb(key string, fb uint64) uint64 {
+	str := envString(key)
+
+	i, err := strconv.ParseUint(str, 10, 64)
 	if err != nil {
 		return fb
 	}

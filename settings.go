@@ -6,29 +6,15 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"openticket.tech/crud"
+
+	cru2 "github.com/tuupke/pixie/crud"
 )
 
 type Settings gorm.DB
 
-func (set *Settings) CrudController() (crud.Routable, error) {
-	return crud.Controller(Setting{}, crud.Specification{
-		NotPaginated: true,
-		Orm:          (*gorm.DB)(set),
-		Amounts:      crud.Amounts{},
-		ModelRoutes: []crud.RouteOperation{
-			crud.DefaultOperation(crud.Single),
-			crud.DefaultOperation(crud.List),
-			crud.DefaultOperation(crud.Update),
-			crud.DefaultOperation(crud.Partial),
-			crud.DefaultOperation(crud.Filters),
-			crud.DefaultOperation(crud.Delete),
-			crud.DefaultOperation(crud.Create),
-		},
-	})
+func (set *Settings) CrudController() *cru2.Controller[Setting] {
+	return cru2.New[Setting]((*gorm.DB)(set))
 }
-
-var _ crud.Model = (*Setting)(nil)
 
 type RawMessage []byte
 
@@ -79,7 +65,7 @@ func (m *RawMessage) Scan(src any) error {
 }
 
 type Setting struct {
-	Key   string     `json:"key"`
+	Key   string     `gorm:"primaryKey" json:"key"`
 	Value RawMessage `json:"value"`
 }
 
