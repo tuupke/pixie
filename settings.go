@@ -7,13 +7,13 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	cru2 "github.com/tuupke/pixie/crud"
+	"github.com/tuupke/pixie/crud"
 )
 
 type Settings gorm.DB
 
-func (set *Settings) CrudController() *cru2.Controller[Setting] {
-	return cru2.New[Setting]((*gorm.DB)(set))
+func (set *Settings) CrudController() *crud.Controller[Setting] {
+	return crud.New[Setting]((*gorm.DB)(set))
 }
 
 type RawMessage []byte

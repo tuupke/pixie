@@ -6,6 +6,7 @@ require (
 	github.com/glebarez/sqlite v1.4.7
 	github.com/google/flatbuffers v2.0.8+incompatible
 	github.com/google/uuid v1.3.0
+	github.com/joho/godotenv v1.4.0
 	github.com/rs/zerolog v1.28.0
 	github.com/valyala/fasthttp v1.40.0
 	gorm.io/gorm v1.23.10

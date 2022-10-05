@@ -120,7 +120,7 @@
 <!--      <img hidden src="/public/image.png" id="qrimage"/>-->
     </template>
   </Card>
-  <Card v-else class="col-12">
+  <Card v-else class="col-12 max-w-10rem">
     <template #title>Teamlist</template>
     <template #content>
       <DataTable :scrollable="true" scrollHeight="400px" :value="teamsWithTeam"

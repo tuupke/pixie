@@ -4,7 +4,13 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
+
+func init() {
+	godotenv.Load()
+}
 
 func envDurationFb(key string, fb time.Duration) time.Duration {
 	durStr := envString(key)

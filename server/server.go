@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fasthttp/router"
+	"github.com/go-gormigrate/gormigrate/v2"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/mdns"
@@ -44,9 +45,9 @@ type wString string
 func (w wString) String() string { return string(w) }
 
 type Problem struct {
-	Id       string   `json:"id"`
+	Id       string   `gorm:"primaryKey" json:"id"`
 	Rgb      *string  `json:"rgb"`
-	Location Location `json:"location" gorm:"embedded;embeddedPrefix:loc_"`
+	Location Location `gorm:"embedded;embeddedPrefix:loc_" json:"location"`
 }
 
 func (p Problem) Identifier() fmt.Stringer {
@@ -58,9 +59,9 @@ type ExternalData struct {
 	Username string    `json:"username"`
 	UserId   string    `json:"id"`
 	Teamname *string   `json:"team"`
-	TeamId   *string   `json:"team_id"`
-	HostId   *string   `json:"host_id"`
-	Location Rotated   `json:"location" gorm:"embedded;embeddedPrefix:loc_"`
+	TeamId   *string   `gorm:"uniqueIndex" json:"team_id"`
+	HostId   *string   `gorm:"index:" json:"host_id"`
+	Location Rotated   `gorm:"embedded;embeddedPrefix:loc_" json:"location"`
 }
 
 type Rotated struct {
@@ -74,7 +75,7 @@ type Location struct {
 }
 
 type Host struct {
-	Guid       crud.UUID `gorm:"primaryKey" json:"guid"`
+	Guid       crud.UUID `gorm:"primaryKey,uniqueIndex" json:"guid"`
 	Hostname   string    `json:"hostname"`
 	PrimaryIp  string    `json:"primary_ip"`
 	PrimaryMac string    `json:"primary_mac"`
@@ -157,6 +158,7 @@ func main() {
 	}
 
 	orm = pixie.Orm()
+	log.Err(gormigrate.New(orm, gormigrate.DefaultOptions, migrations()).Migrate()).Msg("migrated")
 
 	_, err = nc.Subscribe("register-a-new-host", func(msg *nats.Msg) {
 		log.Debug().Bytes("registration", msg.Data).Msg("received registration")
@@ -325,7 +327,7 @@ func main() {
 
 	rtr.GET("/{path:*}", pathHandler)
 
-	api.GET("/inventory", func(ctx *fasthttp.RequestCtx) {
+	api.GET("inventory", func(ctx *fasthttp.RequestCtx) {
 		var ansible = bytes.NewBufferString(`clients:
   vars:
     ansible_user: root
@@ -352,7 +354,7 @@ func main() {
 		ctx.WriteString(ansible.String())
 	})
 
-	api.GET("/contests", func(ctx *fasthttp.RequestCtx) {
+	api.GET("contests", func(ctx *fasthttp.RequestCtx) {
 		lg := crud.LoggerFromRequest(ctx)
 
 		req, _ := http.NewRequest(http.MethodGet, djUrl()+"contests", nil)
@@ -370,10 +372,10 @@ func main() {
 		ctx.SetStatusCode(resp.StatusCode)
 	})
 
-	api.GET("/djTeam", djTeamLoad)
-	api.GET("/djProblem", djProblemLoad)
+	api.GET("djTeam", djTeamLoad)
+	api.GET("djProblem", djProblemLoad)
 
-	api.POST("/tim-json", func(ctx *fasthttp.RequestCtx) {
+	api.POST("tim-json", func(ctx *fasthttp.RequestCtx) {
 		lg := crud.LoggerFromRequest(ctx)
 
 		mpf, err := ctx.MultipartForm()
@@ -493,6 +495,21 @@ func main() {
 		}
 
 		ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
+	}
+
+	rtr.PanicHandler = func(ctx *fasthttp.RequestCtx, i interface{}) {
+		lg := crud.LoggerFromRequest(ctx)
+		lg.Error().Interface("error", i).Msg("panic received")
+	}
+
+	rtr.NotFound = func(ctx *fasthttp.RequestCtx) {
+		lg := crud.LoggerFromRequest(ctx)
+		lg.Warn().Msg("not found")
+	}
+
+	rtr.MethodNotAllowed = func(ctx *fasthttp.RequestCtx) {
+		lg := crud.LoggerFromRequest(ctx)
+		lg.Warn().Msg("not allowed")
 	}
 
 	err = fasthttp.ListenAndServe(listenAddr, basicAuth(rtr.Handler))
@@ -708,5 +725,5 @@ func djProblemLoad(ctx *fasthttp.RequestCtx) {
 
 	lg.Err(err).Int64("rowsaffected", affected).Msg("inserted problems")
 	crud.HandleError(ctx, http.StatusInternalServerError, err)
-	crud.HandleError(ctx, http.StatusInternalServerError, crud.Respond(ctx, probs))
+	crud.Respond(ctx, probs)
 }
