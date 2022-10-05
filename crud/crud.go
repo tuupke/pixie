@@ -38,7 +38,6 @@ func getGuid(ctx *fasthttp.RequestCtx) string {
 	}
 
 	return id
-
 }
 
 func (c *Controller[T]) Get(ctx *fasthttp.RequestCtx) {
@@ -48,7 +47,7 @@ func (c *Controller[T]) Get(ctx *fasthttp.RequestCtx) {
 	err := (*gorm.DB)(c).Model(m).First(&m, PrimaryKeyExpression(id)).Error
 
 	HandleError(ctx, http.StatusInternalServerError, err)
-	HandleError(ctx, http.StatusInternalServerError, Respond(ctx, m))
+	Respond(ctx, m)
 }
 
 func (c *Controller[T]) List(ctx *fasthttp.RequestCtx) {
@@ -56,7 +55,7 @@ func (c *Controller[T]) List(ctx *fasthttp.RequestCtx) {
 	var slice []T
 	err := (*gorm.DB)(c).Model(m).Find(&slice).Error
 	HandleError(ctx, http.StatusInternalServerError, err)
-	HandleError(ctx, http.StatusInternalServerError, Respond(ctx, slice))
+	Respond(ctx, slice)
 }
 
 func (c *Controller[T]) Partial(ctx *fasthttp.RequestCtx) {
@@ -67,12 +66,12 @@ func (c *Controller[T]) Partial(ctx *fasthttp.RequestCtx) {
 	HandleError(ctx, http.StatusNotFound, db.First(&m, PrimaryKeyExpression(id)).Error)
 	HandleError(ctx, http.StatusInternalServerError, json.Unmarshal(ctx.Request.Body(), &m))
 	HandleError(ctx, http.StatusInternalServerError, (*gorm.DB)(c).Model(m).Select("*").Updates(m).Error)
-	HandleError(ctx, http.StatusInternalServerError, Respond(ctx, m))
+	Respond(ctx, m)
 }
 
-func Respond(ctx *fasthttp.RequestCtx, m interface{}) error {
+func Respond(ctx *fasthttp.RequestCtx, m interface{}) {
 	ctx.Response.Header.Add("content-type", "application/json")
-	return json.NewEncoder(ctx).Encode(m)
+	HandleError(ctx, http.StatusInternalServerError, json.NewEncoder(ctx).Encode(m))
 }
 
 func HandleError(ctx *fasthttp.RequestCtx, status int, err error) {
@@ -81,7 +80,8 @@ func HandleError(ctx *fasthttp.RequestCtx, status int, err error) {
 	}
 
 	ctx.SetStatusCode(status)
-	log.Err(err).Str("uri", ctx.Request.URI().String()).Bytes("method", ctx.Method()).Int("status", status).Msg("found error")
+	lg := LoggerFromRequest(ctx)
+	lg.Err(err).Int("status", status).Msg("found error")
 	_, err = ctx.Write([]byte(err.Error()))
 
 	// Stops execution

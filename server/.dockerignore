@@ -1,0 +1,4 @@
+*.sqlite
+*.sqlite.old
+.env
+vendor

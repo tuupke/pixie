@@ -51,7 +51,7 @@ var (
 	// webhookTimeout   = envDurationFb("WEBHOOK_TIMEOUT", time.Millisecond*250)
 	// mergeWebhook     = envBool("WEBHOOK_MERGE")
 	ipAddressKeyname = envStringFb("WEBHOOK_IP_NAME", "team_ip_address")
-	cupsListen       = envStringFb("CUPS_ADDR", "ppp:6631")
+	cupsListen       = envStringFb("CUPS_ADDR", ":631")
 
 	pdfUnit        = envStringFb("PDF_UNIT_SIZE", "mm")
 	pdfSize        = envStringFb("PDF_PAGE_SIZE", "A4")

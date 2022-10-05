@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/OpenPrinting/goipp v1.0.0
 	github.com/fasthttp/router v1.4.12
+	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/google/flatbuffers v2.0.8+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/mdns v1.0.5
@@ -14,7 +15,7 @@ require (
 	github.com/pdfcpu/pdfcpu v0.3.14-0.20220710000106-a02156691061
 	github.com/rs/zerolog v1.28.0
 	github.com/spf13/afero v1.9.2
-	github.com/tuupke/pixie v0.0.0-20220503214133-75c988fe240a
+	github.com/tuupke/pixie v0.0.0-20221005175601-1aad92dd803b
 	github.com/valyala/fasthttp v1.40.0
 	gorm.io/gorm v1.23.10
 )
@@ -28,6 +29,7 @@ require (
 	github.com/hhrutter/tiff v0.0.0-20190829141212-736cae8d0bc7 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/klauspost/compress v1.15.10 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -57,5 +59,3 @@ require (
 	modernc.org/memory v1.4.0 // indirect
 	modernc.org/sqlite v1.19.1 // indirect
 )
-
-replace github.com/tuupke/pixie => ../
