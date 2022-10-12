@@ -306,21 +306,20 @@ func main() {
 	if !envBoolFb("IS_DEV", false) {
 		dashboardLocation := envStringFb("DASHBOARD_LOCATION", "fe/dist/")
 		pathHandler = (&fasthttp.FS{
-			Root:       dashboardLocation,
-			IndexNames: []string{"index.html"},
-			PathNotFound: func(ctx *fasthttp.RequestCtx) {
-				// Attempt to load the index.html on 404
-				f, err := os.Open(fmt.Sprintf("%v/index.html", dashboardLocation))
-				if err != nil {
-					ctx.SetStatusCode(500)
-					log.Err(err).Msg("cannot find index file")
-					return
+			Root:            dashboardLocation,
+			IndexNames:      []string{"index.html"},
+			Compress:        true,
+			CompressBrotli:  true,
+			AcceptByteRange: true,
+			PathRewrite: func(ctx *fasthttp.RequestCtx) []byte {
+				pth := ctx.Path()
+
+				fe, err := os.Stat(dashboardLocation + string(ctx.Path()))
+				if err != nil || fe.IsDir() {
+					return []byte("/index.html")
 				}
 
-				defer f.Close()
-				ctx.Response.Header.Set("content-type", "text/html")
-				ctx.SetStatusCode(200)
-				io.Copy(ctx, f)
+				return pth
 			},
 		}).NewRequestHandler()
 	} else {

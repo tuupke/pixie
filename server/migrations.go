@@ -2,9 +2,8 @@ package main
 
 import (
 	"github.com/go-gormigrate/gormigrate/v2"
-	"gorm.io/gorm"
-
 	"github.com/tuupke/pixie"
+	"gorm.io/gorm"
 )
 
 func migrations() []*gormigrate.Migration {
