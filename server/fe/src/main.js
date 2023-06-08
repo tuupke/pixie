@@ -21,6 +21,7 @@ import Column from 'primevue/column';
 import Row from 'primevue/row';                     //optional for row
 import Team from '@/components/Team.vue'
 import TeamTable from '@/components/Layout/TeamTable.vue'
+import Room from '@/components/Layout/Room.vue'
 
 
 import 'primevue/resources/themes/saga-blue/theme.css'       //theme
@@ -29,6 +30,7 @@ import 'primeicons/primeicons.css'                           //icons
 import 'primeflex/primeflex.css';
 import Card from 'primevue/card';
 import Slider from "primevue/slider";
+import axios from "axios";
 
 const app = createApp(App);
 
@@ -52,7 +54,14 @@ app.component('DataTable', DataTable)
 app.component('Column', Column)
 app.component('Row', Row)
 app.component('Team', Team)
+app.component('Room', Room)
 app.component('TeamTable', TeamTable)
 app.component('Slider', Slider)
 
 app.mount('#app')
+
+
+if (import.meta.env.PROD) {
+    const host = window.location.hostname;
+    axios.defaults.baseURL = "https://" + host;
+}

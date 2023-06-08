@@ -6,7 +6,7 @@ WORKDIR /server
 USER root
 
 # Run the installer
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o /pixie .
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-w -s" -o /pixie .
 
 FROM node:current-alpine AS frontend
 

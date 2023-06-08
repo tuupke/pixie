@@ -1,3 +1,0 @@
-#!/bin/bash
-
-taskset -c 0 java -Dfile.encoding=UTF-8 -XX:+UseSerialGC -Xss64m -Xms1920m -Xmx1920m $1

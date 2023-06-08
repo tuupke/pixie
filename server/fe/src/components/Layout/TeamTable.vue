@@ -1,15 +1,23 @@
 <template>
   <g :transform="posCalc()" class="teamtable">
+    <rect :x="this.teamtableStore.areaX" :y="this.teamtableStore.areaY" style='stroke-width: 1px; stroke: #0b7ad1; fill: none;' :width="this.teamtableStore.areaWidth" :height="this.teamtableStore.areaHeight"></rect>
+    <svg :x="this.teamtableStore.tableX" :y="this.teamtableStore.tableY" :width="this.teamtableStore.tableWidth" :height="this.teamtableStore.tableHeight" style="overflow: visible">
 
-    <rect :x="-areaWidth/2" :y="-areaHeight/2" style='stroke-width: 1px; stroke: #0b7ad1; fill: none;' :width="areaWidth" :height="areaHeight"></rect>
-    <rect :x="-width/2" :y="-2*height/3" :width="width" :height="height"/>
-    <text alignment-baseline="middle" font-family="sans-serif" :font-size="height" font-style="normal"
+      <rect :width="this.teamtableStore.tableWidth" :height="this.teamtableStore.tableHeight" />
+      <text
+          x="50%" y="50%"
+          dominant-baseline="middle"
+          alignment-baseline="central"
+          font-family="sans-serif"
+          :font-size="this.teamtableStore.dFontSize"
+          font-style="normal"
           text-anchor="middle"
           font-weight="normal">
-      <slot></slot>
-    </text>
+        {{ teamId }}
+      </text>
+    </svg>
     <g>
-      <rect v-for="(n,index) in seatNum" :x="seatX(index)" :y="height / 3 + seatDist" :width="seatWidth" :height="seatHeight"/>
+      <rect v-for="(n,index) in this.teamtableStore.seatNum" :x="seatX(index)" :y="this.teamtableStore.seatY" :width="this.teamtableStore.seatWidth" :height="this.teamtableStore.seatHeight"/>
     </g>
   </g>
 </template>
@@ -50,57 +58,35 @@
 }
 
 .teamtable:hover rect {
-  stroke-width: 3;
+  stroke-width: 3px;
 }
 
 </style>
 
 <script>
+import {mapStores} from 'pinia'
+import {teamtableStore} from "@/stores/teamtable";
 
 export default {
   props: {
     'x': {type: Number, required: true},
     'y': {type: Number, required: true},
-
-    'seatSep': {type: Number, required: false, default: 3},
-    'seatDist': {type: Number, required: false, default: 3},
-    'seatNum': {type: Number, required: false, default: 3},
-
-    'margin': {type: Number, required: false, default: 0},
-
-    'areaWidth': {type: Number, required: false, default: 50},
-    'areaHeight': {type: Number, required: false, default: 30},
-
-    'height': {type: Number, required: false, default: 15},
-    'seatHeight': {type: Number, required: false, default: 3},
     'rotation': {type: Number, required: false, default: 0},
+    'teamId': {type: Number, required: true},
   },
-  computed: {
-    width() {
-      return this.areaWidth - 2*this.margin;
-    },
-    seatWidth() {
-      return this.width / this.seatNum - this.seatSep;
-    },
-    totalHeight() {
-      return this.areaHeight - 2*this.margin;
-    }
-  },
+
+  computed: mapStores(teamtableStore),
   methods: {
     posCalc: function () {
       return `translate(${this.x}, ${this.y}) rotate(${this.rotation})`
     },
     seatX: function(i) {
-      let x = -this.width / 2 + this.seatSep / 2;
-      // if (this.seatNum % 2 !== 0) {
-      //   // Odd, shift everything one over
-      //   x += this.seatWidth / 4;
-      // }
-
-      x += i * (this.seatWidth + this.seatSep)
-
-      return x
+      return -this.teamtableStore.tableWidth / 2 + this.teamtableStore.seatSep / 2 + i * (this.teamtableStore.seatWidth + this.teamtableStore.seatSep) + this.teamtableStore.offsetX;
     }
   },
+
+  mounted() {
+    this.teamtableStore.registerTeamId(this.teamId)
+  }
 }
 </script>

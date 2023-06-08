@@ -108,15 +108,17 @@ func init() {
 		log.Fatal().Msg("interfaces is required")
 	}
 
-	var natsAddr string
+	var natsAddr string = envString("NATS_ADDR")
 
-	// Two cases, either an nats-addr is provided, or we need to choose one
-	// if it is not provided load the first private ip
-	for _, a := range addrs {
-		if ipNet, ok := a.(*net.IPNet); ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
-			natsAddr = ipNet.IP.String() + ":4222"
-			broadcastIPnet = ipNet
-			break
+	if natsAddr == "" {
+		// Two cases, either an nats-addr is provided, or we need to choose one
+		// if it is not provided load the first private ip
+		for _, a := range addrs {
+			if ipNet, ok := a.(*net.IPNet); ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
+				natsAddr = ipNet.IP.String() + ":4222"
+				broadcastIPnet = ipNet
+				break
+			}
 		}
 	}
 
@@ -135,7 +137,7 @@ func init() {
 		log.Fatal().Str("natsHost", natsHost).Msg("natsHost does not appear to be an ip")
 	}
 
-	// mdnsServe(natsAddr)
+	mdnsServe(natsAddr)
 }
 
 var settings *pixie.Settings
@@ -482,8 +484,8 @@ func main() {
 
 	})
 
-	rtr.RedirectTrailingSlash = true
 	rtr.SaveMatchedRoutePath = true
+	rtr.RedirectTrailingSlash = false
 	// r.GlobalOPTIONS = nil
 	rtr.GlobalOPTIONS = func(ctx *fasthttp.RequestCtx) {
 
@@ -519,18 +521,25 @@ func main() {
 		lg.Warn().Msg("not allowed")
 	}
 
-	err = fasthttp.ListenAndServe(listenAddr, basicAuth(rtr.Handler))
+	go func() {
+		err := fasthttp.ListenAndServe(listenAddr, basicAuth(rtr.Handler))
 
-	log.Err(err).Msg("started rest")
-	if err != nil {
-		log.Fatal().Msg("bye")
-	}
+		log.Err(err).Msg("started rest")
+		if err != nil {
+			log.Fatal().Msg("bye")
+		}
+	}()
 
 	privateRtr := router.New()
 	privateRtr.ANY("/{path:*}", CupsHandler)
 
-	err = fasthttp.ListenAndServe(cupsListen, privateRtr.Handler)
-	log.Err(err).Msg("started cups proxy")
+	go func() {
+		err = fasthttp.ListenAndServe(cupsListen, privateRtr.Handler)
+		log.Err(err).Msg("started cups proxy")
+		if err != nil {
+			log.Fatal().Msg("bye")
+		}
+	}()
 
 	log.Info().Msg("Booted")
 	lifecycle.Finally(func() { log.Warn().Msg("Stopping") })

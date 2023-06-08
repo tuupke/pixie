@@ -16,7 +16,7 @@ export const settingsStore = defineStore("settings", {
     actions: {
         async fetchSettings() {
             try {
-                const data = await axios.get('/api/setting')
+                const data = await axios.get('/api/setting/')
                 this.settings = data.data
 
                 for (let i in this.settings) {
@@ -27,10 +27,10 @@ export const settingsStore = defineStore("settings", {
                     }
                 }
 
-                const problems = await axios.get('/api/problem')
+                const problems = await axios.get('/api/problem/')
                 this.problems = problems.data
 
-                const hosts = await axios.get('/api/host')
+                const hosts = await axios.get('/api/host/')
                 this.hosts = hosts.data
             } catch (error) {
                 alert(error)

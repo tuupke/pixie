@@ -13,7 +13,7 @@ export const teamsStore = defineStore("teams",{
     actions: {
         async fetchTeams() {
             try {
-                const data = await axios.get('/api/external_data')
+                const data = await axios.get('/api/external_data/')
                 this.teams = data.data
             }
             catch (error) {
@@ -22,7 +22,7 @@ export const teamsStore = defineStore("teams",{
             }
         },
         updateTeams() {
-            axios.get('/api/djLoad').then(this.fetchTeams)
+            axios.get('/api/djLoad/').then(this.fetchTeams)
         }
     },
 })

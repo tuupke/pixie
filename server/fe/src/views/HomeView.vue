@@ -218,8 +218,8 @@ import {mapStores} from 'pinia'
 import { downloadZip } from "https://cdn.jsdelivr.net/npm/client-zip/index.js"
 
 // declare store variable
-import {settingsStore} from "../stores/settings";
-import {teamsStore} from "../stores/teams";
+import {settingsStore} from "@/stores/settings";
+import {teamsStore} from "@/stores/teams";
 import QrScanner from "qr-scanner";
 
 import * as flatbuffers from 'flatbuffers';
@@ -243,8 +243,8 @@ export default {
       }, {
         label: 'DOMjudge',
         command: () => {
-          axios.get("/api/djTeam")
-          axios.get("/api/djProblem")
+          axios.get("/api/djTeam/")
+          axios.get("/api/djProblem/")
           this.reloadSettings()
           this.$toast.add({
             severity: 'success',
@@ -374,7 +374,7 @@ export default {
     setHost: function () {
       const that = this;
       window.setTimeout(function() {
-        axios.patch(`/api/external_data/${that.modifyingteam.guid}`, {
+        axios.patch(`/api/external_data/${that.modifyingteam.guid}/`, {
           "host_id": that.modifyingteam.host_id
         }).then(this.reloadSettings)
       }, 300)

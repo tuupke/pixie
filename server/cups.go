@@ -11,8 +11,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/OpenPrinting/goipp"
@@ -46,9 +48,6 @@ var (
 	// num = new(uint32)
 
 	printerTo = envStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
-	// webhook          = envStringFb("WEBHOOK_URL", "")
-	// webhookMethod    = envStringFb("WEBHOOK_METHOD", "GET")
-	// webhookTimeout   = envDurationFb("WEBHOOK_TIMEOUT", time.Millisecond*250)
 	// mergeWebhook     = envBool("WEBHOOK_MERGE")
 	ipAddressKeyname = envStringFb("WEBHOOK_IP_NAME", "team_ip_address")
 	cupsListen       = envStringFb("CUPS_ADDR", ":631")
@@ -59,6 +58,9 @@ var (
 	pdfInLandscape = envBool("PDF_LANDSCAPE")
 	timeoutPdf     = envDurationFb("PDF_REFRESH_DURATION", time.Minute*5)
 	cacheFolder    = envStringFb("IPP_CACHE_DIR", "/tmp/pixie/")
+
+	ippDebugFolder = envString("IPP_DEBUG_FOLDER")
+	ippRequestNum  = new(uint64)
 
 	imgDpi = float64(envIntFb("IMAGE_PPI", 120))
 
@@ -72,8 +74,13 @@ var (
 	to = btsReplace([]byte("ipp://" + printerTo))
 )
 
-func ensureFolder(folder *string) {
+func ensureFolder(folder *string, empty bool) {
 	*folder = strings.TrimRight(*folder, "/")
+
+	if empty {
+		// remove and let rest of procedure recreate, don't really care about failing removal
+		_ = os.RemoveAll(*folder)
+	}
 
 	stat, err := os.Stat(*folder)
 
@@ -97,18 +104,31 @@ func ensureFolder(folder *string) {
 }
 
 func init() {
-	ensureFolder(&cacheFolder)
-
+	ensureFolder(&cacheFolder, false)
 	memFs = afero.NewMemMapFs()
+
+	if ippDebugFolder != "" {
+		ensureFolder(&ippDebugFolder, true)
+	}
 }
+
+const createOpts = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 
 // CupsHandler is the handler which proxies all cups requests and fixes
 func CupsHandler(ctx *fasthttp.RequestCtx) {
 	path := bytes.Trim(ctx.Request.URI().Path(), "/")
 	requestedUrl := fmt.Sprintf("ipp://%s/%s", cupsListen, []byte(path))
+
 	from := btsReplace([]byte(requestedUrl))
 
 	btso := ctx.PostBody()
+
+	var ippNum = atomic.AddUint64(ippRequestNum, 1)
+
+	if ippDebugFolder != "" {
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-1.1-req-pre.header", ippDebugFolder, ippNum), ctx.Request.Header.Header(), 0x0755)).Msg("written header pre-replace ipp debug")
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-1.2-req-pre.bin", ippDebugFolder, ippNum), btso, 0x0755)).Msg("written request pre-replace ipp debug")
+	}
 
 	// Replace the url
 	bts := bytes.Replace(btso, from, to, -1)
@@ -219,6 +239,11 @@ func CupsHandler(ctx *fasthttp.RequestCtx) {
 		hreq.Header.Add(string(key), strings.Replace(string(value), requestedUrl, printerTo, -1))
 	})
 
+	if ippDebugFolder != "" {
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-2.1-req-post.header", ippDebugFolder, ippNum), ctx.Request.Header.Header(), 0x0755)).Msg("written request header post-replace ipp debug")
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-2.2-req-post.bin", ippDebugFolder, ippNum), btso, 0x0755)).Msg("written request body post-replace ipp debug")
+	}
+
 	resp, err := http.DefaultClient.Do(hreq)
 	_ = hreq.Body.Close()
 	if err != nil {
@@ -226,15 +251,41 @@ func CupsHandler(ctx *fasthttp.RequestCtx) {
 	}
 
 	bts, err = io.ReadAll(resp.Body)
+
 	_ = resp.Body.Close()
+
+	if ippDebugFolder != "" {
+		f, err := os.OpenFile(fmt.Sprintf("%v/%v-3.1-resp-pre.header", ippDebugFolder, ippNum), createOpts, 0x0755)
+		if err == nil {
+			defer f.Close()
+			err = resp.Header.Clone().Write(f)
+		}
+		log.Err(err).Msg("written response header pre-replace ipp debug")
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-3.2-resp-pre.bin", ippDebugFolder, ippNum), bts, 0x0755)).Msg("written response body pre-replace ipp debug")
+	}
+
+	bts = regexp.MustCompile("document-format-supported[\\S\\s]*?D\\x00").ReplaceAll(bts, []byte("document-format-supported\x00\x0fapplication/pdfD\x00"))
 	bts = bytes.Replace(bts, to, from, -1)
 
+	var rawHeaders = make(http.Header)
 	ctx.SetStatusCode(resp.StatusCode)
 	// writer.WriteHeader(resp.StatusCode)
 	for k, values := range resp.Header {
 		for _, value := range values {
-			ctx.Response.Header.Add(k, strings.Replace(value, printerTo, requestedUrl, -1))
+			repl := strings.Replace(value, printerTo, requestedUrl, -1)
+			rawHeaders.Add(k, repl)
+			ctx.Response.Header.Add(k, repl)
 		}
+	}
+
+	if ippDebugFolder != "" {
+		f, err := os.OpenFile(fmt.Sprintf("%v/%v-4.1-resp-post.header", ippDebugFolder, ippNum), createOpts, 0x755)
+		if err == nil {
+			defer f.Close()
+			err = rawHeaders.Write(f)
+		}
+		log.Err(err).Msg("written response header post-replace ipp debug")
+		log.Err(os.WriteFile(fmt.Sprintf("%v/%v-4.2-resp-post.bin", ippDebugFolder, ippNum), bts, 0x755)).Msg("written response body post-replace ipp debug")
 	}
 
 	if _, err := ctx.Write(bts); err != nil {
