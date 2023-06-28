@@ -1,13 +1,19 @@
-package main
+package env
 
 import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
-func envDurationFb(key string, fb time.Duration) time.Duration {
-	durStr := envString(key)
+func init() {
+	_ = godotenv.Load()
+}
+
+func DurationFb(key string, fb time.Duration) time.Duration {
+	durStr := String(key)
 	d, err := time.ParseDuration(durStr)
 	if err != nil {
 		return fb
@@ -16,12 +22,12 @@ func envDurationFb(key string, fb time.Duration) time.Duration {
 	return d
 }
 
-func envString(key string) string {
+func String(key string) string {
 	return os.Getenv(key)
 }
 
-func envStringFb(key, fb string) (v string) {
-	v = envString(key)
+func StringFb(key, fb string) (v string) {
+	v = String(key)
 	if v == "" {
 		v = fb
 	}
@@ -29,12 +35,12 @@ func envStringFb(key, fb string) (v string) {
 	return
 }
 
-func envBool(key string) bool {
+func Bool(key string) bool {
 	val, err := strconv.ParseBool(os.Getenv(key))
 	return val && err != nil
 }
 
-func envBoolFb(key string, fb bool) bool {
+func BoolFb(key string, fb bool) bool {
 	if val, err := strconv.ParseBool(os.Getenv(key)); err == nil {
 		return val
 	}
@@ -42,8 +48,8 @@ func envBoolFb(key string, fb bool) bool {
 	return fb
 }
 
-func envIntFb(key string, fb int) int {
-	str := envString(key)
+func IntFb(key string, fb int) int {
+	str := String(key)
 	i, err := strconv.Atoi(str)
 	if err != nil {
 		return fb
@@ -52,8 +58,8 @@ func envIntFb(key string, fb int) int {
 	return i
 }
 
-func envUInt64Fb(key string, fb uint64) uint64 {
-	str := envString(key)
+func UInt64Fb(key string, fb uint64) uint64 {
+	str := String(key)
 
 	i, err := strconv.ParseUint(str, 10, 64)
 	if err != nil {

@@ -38,7 +38,7 @@ import (
 	"github.com/tuupke/pixie/packets"
 )
 
-var listenAddr = envStringFb("LISTEN_ADDR", ":4000")
+var listenAddr = EnvStringFb("LISTEN_ADDR", ":4000")
 
 type wString string
 
@@ -108,7 +108,7 @@ func init() {
 		log.Fatal().Msg("interfaces is required")
 	}
 
-	var natsAddr string = envString("NATS_ADDR")
+	var natsAddr string = EnvString("NATS_ADDR")
 
 	if natsAddr == "" {
 		// Two cases, either an nats-addr is provided, or we need to choose one
@@ -305,8 +305,8 @@ func main() {
 	})
 
 	var pathHandler fasthttp.RequestHandler
-	if !envBoolFb("IS_DEV", false) {
-		dashboardLocation := envStringFb("DASHBOARD_LOCATION", "fe/dist/")
+	if !EnvBoolFb("IS_DEV", false) {
+		dashboardLocation := EnvStringFb("DASHBOARD_LOCATION", "fe/dist/")
 		pathHandler = (&fasthttp.FS{
 			Root:            dashboardLocation,
 			IndexNames:      []string{"index.html"},
@@ -547,14 +547,14 @@ func main() {
 }
 
 var numRequests sync.Map
-var checkEvery = envUInt64Fb("CHECK_PASSWORD_EVERY", 10)
+var checkEvery = EnvUInt64Fb("CHECK_PASSWORD_EVERY", 10)
 
 func basicAuth(next func(ctx *fasthttp.RequestCtx)) func(ctx *fasthttp.RequestCtx) {
 	var basicAuthPrefix = []byte("Basic ")
 
 	return func(ctx *fasthttp.RequestCtx) { // func(w http.ResponseWriter, r *http.Request) {
 		auth := ctx.Request.Header.Peek("Authorization")
-		if envBoolFb("IS_DEV", false) {
+		if EnvBoolFb("IS_DEV", false) {
 			auth = []byte("Basic YWRtaW46YWRtaW4=")
 		}
 

@@ -1,0 +1,421 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/tuupke/pixie/env"
+	"github.com/tuupke/pixie/lifecycle"
+)
+
+const unset = "__unset__"
+
+var (
+	DjLocation   = env.StringFb("DOMJUDGE_URL", unset)
+	WebHook      = env.StringFb("DOMJUDGE_URL", unset)
+	DownloadTo   = env.StringFb("DOWNLOAD_DIR", os.TempDir())
+	RetryIn      = env.DurationFb("RETRY_COOLDOWN", time.Second*2)
+	etagCache    = make(map[string]etagTriple)
+	etagWrite    = make(chan etagTriple)
+	propsCache   = make(map[string]props)
+	propsWrite   = make(chan props)
+	protectKeys  = make(map[string]*proploading)
+	protectWrite = make(chan *proploading)
+)
+
+type (
+	proploading struct {
+		initialDone, loadDone *sync.Once
+		initial, loading      sync.WaitGroup
+
+		keyToProtect string
+	}
+
+	props      map[string]string
+	etagTriple struct{ Key, Date, Path string }
+)
+
+// load signals that this proploading will need to be reloaded. This consists of retrieving data from all sources
+func (f *proploading) load(ctx context.Context, url string, ip net.IP) {
+	f.loadDone.Do(func() {
+		f.loading.Add(1)
+		defer f.loading.Done()
+
+		defer func() {
+			time.Sleep(RetryIn)
+			f.loadDone = new(sync.Once)
+		}()
+
+		defer f.initialDone.Do(func() {
+			f.initial.Done()
+		})
+
+		mp := propsCache[f.keyToProtect]
+
+		if mp == nil {
+			mp = make(props)
+		}
+		// TODO the actual loading
+		propsWrite <- mp.extractFromRequest(ctx, url, ip)
+	})
+}
+
+func (f *proploading) fetch(wait bool) props {
+	// Always wait for the initial load, potentially wait for the loading of new data
+	f.initial.Wait()
+	if wait {
+		f.loading.Wait()
+	}
+
+	// Some data is supposed to exist. Return the latest data
+	return propsCache[f.keyToProtect]
+}
+
+func init() {
+	if DjLocation != unset {
+		DjLocation = strings.TrimRight(strings.TrimRight(DjLocation, "/"), "/api") + "/api/"
+	}
+
+	// Write etag, and props using channels to prevent multiple concurrent
+	// map-writes. Use a single go-routine, handling should be quick enough
+	// var wg sync.WaitGroup
+	// wg.Add(2)
+	// lifecycle.Finally(wg.Wait)
+	lifecycle.FinallyClose(etagWrite)
+	lifecycle.FinallyClose(propsWrite)
+	go func() {
+		var ok bool
+		var etag etagTriple
+		var prop props
+		var protect *proploading
+
+		for {
+			select {
+			case etag, ok = <-etagWrite:
+				if !ok {
+					break
+				}
+
+				etagCache[etag.Path] = etag
+			case prop, ok = <-propsWrite:
+				if !ok {
+					break
+				}
+
+				propsCache[""] = prop
+			case protect, ok = <-protectWrite:
+				fmt.Println("Received", ok)
+				if !ok {
+					break
+				}
+
+				// Check if we previously wrote, if so, then skip. Only needs to be written once
+				// since it is a pointer type anyway. This might be over-engineering, consider simplification.
+				if _, ok := protectKeys[protect.keyToProtect]; ok {
+					break
+				}
+
+				protect.loading.Add(1)
+				protectKeys[protect.keyToProtect] = protect
+			}
+		}
+	}()
+}
+
+func FetchData(ctx context.Context, url string, ip net.IP) *proploading {
+	key := ip.String()
+	if f, ok := protectKeys[key]; !ok || f == nil {
+		f = new(proploading)
+		f.keyToProtect = key
+		f.initial.Add(1)
+		f.loadDone, f.initialDone = new(sync.Once), new(sync.Once)
+		protectWrite <- f
+	}
+
+	// Some routine must have been the first to signal a proploading to be stored,
+	// await the stored propLoading
+
+	var f *proploading
+	for f = protectKeys[key]; f == nil; f = protectKeys[key] {
+		time.Sleep(time.Microsecond * 100)
+	}
+
+	go f.load(ctx, url, ip)
+	return f
+}
+
+func Rewarm() {
+	// Start some workers to warm the cache. Saves storing etags, though at the cost of downloading everything.
+	foundChan := make(chan string)
+	defer close(foundChan)
+	for i := 0; i < 5; i++ {
+		go func(c chan string) {
+			var u = &url.URL{}
+			for pth := range c {
+				u.Path = pth
+				DownloadFileFromUrl(u)
+			}
+		}(foundChan)
+	}
+
+	var handleDir func(baseDir, dir string)
+	handleDir = func(baseDir, dir string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			// TODO log, this is wierd
+			return
+		}
+
+		for _, entry := range entries {
+			fullPath := dir + "/" + entry.Name()
+			if entry.IsDir() {
+				handleDir(baseDir, fullPath)
+			} else {
+				foundChan <- strings.TrimPrefix(fullPath, baseDir)
+			}
+		}
+	}
+
+	handleDir(DownloadTo, DownloadTo)
+}
+
+func (pr props) clampTo(props []string) (vals map[string]string) {
+	for _, prop := range props {
+		if val, ok := pr[prop]; ok {
+			vals[prop] = val
+		}
+	}
+
+	return
+}
+
+func (pr props) extractFromRequest(ctx context.Context, url string, ip net.IP) props {
+	return pr.extractFromPath(url).fromApi(ctx, ip).fromWebhook(ctx, ip)
+}
+
+func (pr props) extractFromPath(uriPath string) (p props) {
+	p = pr
+	segments := strings.Split(strings.Trim(uriPath, "/"), "/")
+	for _, segment := range segments {
+		// Split the segment, only add if the actually is something to add
+		keyValues := strings.SplitN(segment, "=", 2)
+		if len(keyValues) > 1 {
+			pr.append(keyValues[0], keyValues[1])
+		}
+	}
+
+	return
+}
+
+func (pr props) append(k, v string) {
+	pr[k] = v
+}
+
+func (pr props) fromUrl(ctx context.Context, url, verb string, ip net.IP, ensurePrefix string) {
+	req, err := http.NewRequestWithContext(ctx, verb, url, nil)
+	if err != nil {
+		// TODO error handling
+		return
+	}
+
+	req.Header.Set("X-Forwarded-For", ip.String())
+	req.Header.Set("User-Agent", "Pixie/CupsProxy")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// TODO handle error
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		// Only continue on success
+		return
+	}
+
+	// Interpret the result as a json object
+	res := make(map[string]interface{})
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		// TODO handle error
+		return
+	}
+
+	for k, vi := range res {
+		if v, ok := interfaceToString(vi); ok {
+			if ensurePrefix != "" && !strings.HasPrefix(k, ensurePrefix) {
+				k = ensurePrefix + k
+			}
+
+			pr.append(k, v)
+		}
+	}
+}
+
+func interfaceToString(vi interface{}) (strVal string, ok bool) {
+	ok = true
+	switch v := vi.(type) {
+	case string:
+		strVal = v
+	case int:
+		strVal = strconv.Itoa(v)
+	case uint8:
+		strVal = strconv.Itoa(int(v))
+	case int8:
+		strVal = strconv.Itoa(int(v))
+	case uint16:
+		strVal = strconv.Itoa(int(v))
+	case int16:
+		strVal = strconv.Itoa(int(v))
+	case uint32:
+		strVal = strconv.Itoa(int(v))
+	case int32:
+		strVal = strconv.Itoa(int(v))
+	case uint64:
+		strVal = strconv.FormatUint(v, 10)
+	case int64:
+		strVal = strconv.FormatInt(v, 10)
+	case bool:
+		strVal = strconv.FormatBool(v)
+	case float64:
+		strVal = strconv.FormatFloat(v, 'f', 10, 64)
+	case float32:
+		strVal = strconv.FormatFloat(float64(v), 'f', 10, 32)
+	case []string:
+		strVal = strings.Join(v, ", ")
+
+	default:
+		ok = false
+	}
+
+	return
+}
+
+func (pr props) fromWebhook(ctx context.Context, ip net.IP) (p props) {
+	p = pr
+	if WebHook == unset {
+		return
+	}
+
+	p.fromUrl(ctx, WebHook, http.MethodGet, ip, "")
+	return
+}
+
+func (pr props) fromApi(ctx context.Context, ip net.IP) (p props) {
+	p = pr
+	if DjLocation == unset {
+		return
+	}
+
+	p.fromUrl(ctx, DjLocation+"user", http.MethodGet, ip, "user_")
+	if userId, ok := p["user_id"]; ok {
+		p.fromUrl(ctx, DjLocation+"users/"+userId, http.MethodGet, ip, "user_")
+	}
+	if teamId, ok := p["user_team_id"]; ok {
+		p.fromUrl(ctx, DjLocation+"teams/"+teamId, http.MethodGet, ip, "team_")
+	}
+
+	return
+}
+
+func (pr props) checkAndDownloadImage() (p props) {
+	p = pr
+
+	if imgLoc, ok := pr["image"]; ok {
+		u, err := url.Parse(imgLoc)
+		if err != nil {
+			// TODO log error
+			return
+		}
+
+		DownloadFileFromUrl(u)
+	}
+
+	return
+}
+
+func DownloadFileFromUrl(u *url.URL) {
+	// Ensure the directory exists
+	err := os.Mkdir(DownloadTo+"/"+path.Dir(u.Path), 0755)
+	if err != nil {
+		// TODO log error
+		return
+	}
+
+	// If the file does not exist, skip etag
+	stat, err := os.Stat(DownloadTo + "/" + u.Path)
+	if err != nil && !os.IsNotExist(err) {
+		// TODO log the error
+		return
+	}
+
+	exists := err == nil
+	if exists && stat.IsDir() {
+		exists = false
+		err = os.Remove(DownloadTo + "/" + u.Path)
+		if err != nil {
+			// TODO, log that a directory was found but could not be removed
+			return
+		}
+	}
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		// TODO log error
+		return
+	}
+
+	if exists {
+		etag, ok := etagCache[u.Path]
+		if ok {
+			req.Header.Add("If-None-Match", etag.Key)
+			req.Header.Add("If-Modified-Since", etag.Date)
+		}
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// TODO log error
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotModified {
+		// Nothing to do, latest version is stored
+		return
+	}
+
+	f, err := os.OpenFile(DownloadTo+"/"+u.Path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0755)
+	if err != nil {
+		// TODO log error
+		return
+	}
+
+	defer f.Close()
+
+	// Copy to file
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		// TODO log the error
+		// remove the file just in case
+		_ = os.Remove(DownloadTo + "/" + u.Path)
+		return
+	}
+
+	// Everything succeeded, update etag
+	etagWrite <- etagTriple{
+		Key:  resp.Header.Get("ETag"),
+		Date: resp.Header.Get("Date"),
+		Path: u.Path,
+	}
+
+	return
+}

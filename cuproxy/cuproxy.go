@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/valyala/fasthttp"
 
+	"github.com/tuupke/pixie/cuproxy/props"
 	"github.com/tuupke/pixie/lifecycle"
 )
 
@@ -52,9 +53,7 @@ func writeToFile(name string, contents []byte) {
 
 func cupsHandler(ctx *fasthttp.RequestCtx) {
 	// write the current request
-	// pref := fmt.Sprintf("/home/mart/icpc/pixie/cuproxy/cups/%v", time.Now().UnixMilli())
 	body := ctx.Request.Body()
-	// writeToFile(pref+"-req.bin", body)
 
 	path := bytes.Trim(ctx.Request.URI().Path(), "/")
 	requestedUrl := fmt.Sprintf("ipp://%s/%s", cupsListen, []byte(path))
@@ -63,6 +62,19 @@ func cupsHandler(ctx *fasthttp.RequestCtx) {
 
 	// Replace the url
 	body = bytes.Replace(body, from, to, -1)
+
+	var until = 100
+	if len(body) < until {
+		until = len(body)
+	}
+
+	// If we detect "Create-Job" start retrieving the info
+	if bytes.Index(body[:until], []byte("Create-Job")) >= 0 {
+		props.LoadFromRequest(ctx).Refresh()
+	} else if bytes.Index(body[:until], []byte("Print-Job")) >= 0 {
+		// If we detect "Print-Job", ensure the is data is retrieved
+		props.LoadFromRequest(ctx).CallItIn(false)
+	}
 
 	// In normal cases, simply proxy the request, only when a document is sent some magic is needed.
 	var b io.Reader = bytes.NewBuffer(body)
@@ -126,8 +138,7 @@ func setReplace(body []byte) []byte {
 	//   <type, 1B>\u0000\u0000<value length, 2B, big-endian><value, `value length`B>
 	// The two nulls represent the 'empty key' and thus the value should be interpreted as being part of last key.
 
-	// All keys storing mime-types should be set to 'application/pdf'. mimetypes are depicted by
-
+	// All keys storing mime-types should be set to 'application/pdf'. The type depicting a mime-type is "I"
 	var result = make([]byte, len(body))
 	// We know all our properties start with 0x49 0x00
 	prefix := []byte("I\u0000")
@@ -176,6 +187,6 @@ func setReplace(body []byte) []byte {
 	// Copy the remaining bytes
 	copy(result[appendedUntil:], body[matchedUntil:])
 
-	// Reslice, result is at most `len(body)`
+	// Reslice, result is at most `len(body)` bytes long
 	return result[:appendedUntil+len(body)-matchedUntil]
 }

@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"container/list"
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ var (
 	sigList  map[os.Signal]*list.List
 	stopWait sync.WaitGroup
 	sigChan  chan os.Signal
+	appCtx   context.Context
 )
 
 func init() {
@@ -26,6 +28,14 @@ func init() {
 		// Close channel, therefor exit goroutine, and clean the lists to prevent double exists
 		close(sigChan)
 	})
+
+	var c context.CancelFunc
+	appCtx, c = context.WithCancel(context.Background())
+	Finally(c)
+}
+
+func ApplicationContext() context.Context {
+	return appCtx
 }
 
 // PanicHandler must be called as a deferred method ensuring that cleanup tasks
@@ -73,6 +83,17 @@ func Finally(cb func()) {
 
 func FinallyClose[T any](cs chan T) {
 	Finally(func() { close(cs) })
+}
+
+func FinallyWorker[T any]() (cs chan T, wg *sync.WaitGroup) {
+	cs = make(chan T, 1)
+	wg = new(sync.WaitGroup)
+
+	Finally(func() {
+		wg.Wait()
+	})
+	FinallyClose[T](cs)
+	return
 }
 
 func EFinally(cbs ...func() error) {

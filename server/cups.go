@@ -47,27 +47,27 @@ func btsReplace(check []byte) []byte {
 var (
 	// num = new(uint32)
 
-	printerTo = envStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
-	// mergeWebhook     = envBool("WEBHOOK_MERGE")
-	ipAddressKeyname = envStringFb("WEBHOOK_IP_NAME", "team_ip_address")
-	cupsListen       = envStringFb("CUPS_ADDR", ":631")
+	printerTo = EnvStringFb("IPP_PRINTER_URL", "localhost:631/printers/Virtual_PDF_Printer")
+	// mergeWebhook     = EnvBool("WEBHOOK_MERGE")
+	ipAddressKeyname = EnvStringFb("WEBHOOK_IP_NAME", "team_ip_address")
+	cupsListen       = EnvStringFb("CUPS_ADDR", ":631")
 
-	pdfUnit        = envStringFb("PDF_UNIT_SIZE", "mm")
-	pdfSize        = envStringFb("PDF_PAGE_SIZE", "A4")
-	pdfFontDir     = envString("PDF_FONT_DIR")
-	pdfInLandscape = envBool("PDF_LANDSCAPE")
-	timeoutPdf     = envDurationFb("PDF_REFRESH_DURATION", time.Minute*5)
-	cacheFolder    = envStringFb("IPP_CACHE_DIR", "/tmp/pixie/")
+	pdfUnit        = EnvStringFb("PDF_UNIT_SIZE", "mm")
+	pdfSize        = EnvStringFb("PDF_PAGE_SIZE", "A4")
+	pdfFontDir     = EnvString("PDF_FONT_DIR")
+	pdfInLandscape = EnvBool("PDF_LANDSCAPE")
+	timeoutPdf     = EnvDurationFb("PDF_REFRESH_DURATION", time.Minute*5)
+	cacheFolder    = EnvStringFb("IPP_CACHE_DIR", "/tmp/pixie/")
 
-	ippDebugFolder = envString("IPP_DEBUG_FOLDER")
+	ippDebugFolder = EnvString("IPP_DEBUG_FOLDER")
 	ippRequestNum  = new(uint64)
 
-	imgDpi = float64(envIntFb("IMAGE_PPI", 120))
+	imgDpi = float64(EnvIntFb("IMAGE_PPI", 120))
 
-	pdfLeftMargin   = float64(envIntFb("PDF_LEFT_MARGIN", 10))
-	pdfTopMargin    = float64(envIntFb("PDF_TOP_MARGIN", 15))
-	pdfBottomMargin = float64(envIntFb("PDF_BOTTOM_MARGIN", 6))
-	pdfLineHeight   = float64(envIntFb("PDF_LINE_HEIGHT", 8))
+	pdfLeftMargin   = float64(EnvIntFb("PDF_LEFT_MARGIN", 10))
+	pdfTopMargin    = float64(EnvIntFb("PDF_TOP_MARGIN", 15))
+	pdfBottomMargin = float64(EnvIntFb("PDF_BOTTOM_MARGIN", 6))
+	pdfLineHeight   = float64(EnvIntFb("PDF_LINE_HEIGHT", 8))
 
 	memFs afero.Fs
 
