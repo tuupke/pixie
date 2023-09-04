@@ -37,11 +37,11 @@ func StringFb(key, fb string) (v string) {
 
 func Bool(key string) bool {
 	val, err := strconv.ParseBool(os.Getenv(key))
-	return val && err != nil
+	return val && err == nil
 }
 
 func BoolFb(key string, fb bool) bool {
-	if val, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+	if val, err := strconv.ParseBool(os.Getenv(key)); err != nil {
 		return val
 	}
 

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/jung-kurt/gofpdf"
+	"github.com/rs/zerolog"
 
 	"github.com/tuupke/pixie/env"
 )
@@ -20,16 +22,28 @@ var (
 	pdfLeftMargin   = float64(env.IntFb("PDF_LEFT_MARGIN", 10))
 	pdfTopMargin    = float64(env.IntFb("PDF_TOP_MARGIN", 15))
 	pdfBottomMargin = float64(env.IntFb("PDF_BOTTOM_MARGIN", 6))
-	pdfLineHeight   = float64(env.IntFb("PDF_LINE_HEIGHT", 8))
+	pdfLineHeight   = float64(env.IntFb("PDF_LINE_HEIGHT", 3))
 
 	imgDpi = float64(env.IntFb("IMAGE_PPI", 120))
 )
 
-func BannerPage(outWrite io.Writer, data map[string]string, keys ...string) error {
+func BannerPage(log zerolog.Logger, outWrite io.Writer, data *Props, keys ...string) error {
+	if len(keys) == 1 && keys[0] == "*" {
+		keys = make([]string, 0, 100)
+		data.Range(func(key, _ string) bool {
+			keys = append(keys, key)
+			return true
+		})
+
+		slices.Sort(keys)
+	}
+
 	orientation := "P"
 	if pdfInLandscape {
 		orientation = "L"
 	}
+
+	log.Info().Bool("landscape", pdfInLandscape).Int("num_keys", len(keys)).Msg("rendering new banner")
 
 	pdf := gofpdf.New(orientation, pdfUnit, pdfSize, pdfFontDir)
 	pdf.AddPage()
@@ -37,7 +51,7 @@ func BannerPage(outWrite io.Writer, data map[string]string, keys ...string) erro
 
 	yTop := pdfTopMargin
 	for _, k := range keys {
-		val, ok := data[k]
+		val, ok := data.Load(k)
 		if !ok {
 			continue
 		}

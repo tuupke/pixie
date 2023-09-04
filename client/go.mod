@@ -4,12 +4,12 @@ go 1.19
 
 require (
 	fyne.io/fyne/v2 v2.2.3
-	github.com/coreos/go-systemd/v22 v22.4.0
+	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/google/flatbuffers v22.9.29+incompatible
 	github.com/hashicorp/mdns v1.0.5
 	github.com/kevinburke/go.uuid v1.2.0
 	github.com/nats-io/nats.go v1.18.0
-	github.com/rs/zerolog v1.28.0
+	github.com/rs/zerolog v1.30.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/tuupke/pixie v0.0.0-20221012195931-a74694c783ec
 	github.com/valyala/quicktemplate v1.7.0
@@ -35,12 +35,12 @@ require (
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/joho/godotenv v1.4.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
-	github.com/klauspost/compress v1.16.3 // indirect
+	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.16 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/nats-io/nats-server/v2 v2.8.4 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
@@ -52,16 +52,16 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tevino/abool v1.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.47.0 // indirect
+	github.com/valyala/fasthttp v1.49.0 // indirect
 	github.com/yuin/goldmark v1.5.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/image v0.1.0 // indirect
+	golang.org/x/image v0.12.0 // indirect
 	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect

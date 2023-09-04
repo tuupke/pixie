@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/puzpuzpuz/xsync"
+	"github.com/rs/zerolog"
 
 	"github.com/tuupke/pixie/env"
 )
@@ -42,12 +43,14 @@ var (
 	}()
 )
 
-func Do(ctx context.Context, url, verb string, ip net.IP, requestBody io.Reader) (responseBody io.ReadCloser, responseType string, loaded bool, err error) {
+func Do(ctx context.Context, log zerolog.Logger, url, verb string, ip net.IP, requestBody io.Reader) (responseBody io.ReadCloser, responseType string, loaded bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, verb, url, requestBody)
 	if err != nil {
 		err = fmt.Errorf("cannot create request [%v] '%v'", verb, url)
 		return
 	}
+
+	log = log.With().Str("verb", verb).Str("url", url).Bool("with_ip", ip != nil).Logger()
 
 	req.Header.Set("User-Agent", "Pixie/CupsProxy")
 	req.Header.Set("Accept", "application/json, image/*")
@@ -64,6 +67,12 @@ func Do(ctx context.Context, url, verb string, ip net.IP, requestBody io.Reader)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
+	var statusCode int
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+
+	log.Err(err).Int("status", statusCode).Msg("called hook")
 	if err != nil {
 		err = fmt.Errorf("cannot create request [%v] '%v'", verb, url)
 		return
@@ -72,6 +81,7 @@ func Do(ctx context.Context, url, verb string, ip net.IP, requestBody io.Reader)
 	if resp.StatusCode == http.StatusNotModified {
 		// Nothing to do, not loaded, nor an error is thrown. Close body just in case and return
 		err = resp.Body.Close()
+		log.Err(err).Msg("status not changed, continuing")
 		return
 	}
 
@@ -83,6 +93,7 @@ func Do(ctx context.Context, url, verb string, ip net.IP, requestBody io.Reader)
 
 	if resp.StatusCode/100 != 2 {
 		// Only continue on success
+		log.Warn().Msg("status not succesfull, not continuing to next hook")
 		err = fmt.Errorf("non-successfull status code received (%v)", resp.StatusCode)
 	}
 
