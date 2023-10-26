@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
+	"github.com/tuupke/pixie/env"
 	"github.com/tuupke/pixie/lifecycle"
 )
 
@@ -20,7 +21,7 @@ func Orm() *gorm.DB {
 		//
 
 		// sql.Conn()
-		db, err := sql.Open("sqlite", envString("DB_DSN"))
+		db, err := sql.Open("sqlite", env.String("DB_DSN"))
 		if err != nil {
 			log.Fatal().Err(err).Msg("loading database")
 		}

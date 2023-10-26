@@ -14,7 +14,8 @@ import (
 	"github.com/fasthttp/router"
 	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/puzpuzpuz/xsync"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/valyala/fasthttp"
 
 	"github.com/tuupke/pixie/env"
@@ -22,51 +23,87 @@ import (
 )
 
 var (
-	printerTo  = "localhost:631/printers/Virtual_PDF_Printer"
-	cupsListen = "127.0.0.1:6631"
+	cupsListen = "ppp:6631"     // env.StringFb("LISTEN", ":631")
+	printerTo  = "10.1.0.1:631" // env.String("PRINTER_TO") // "localhost:631/printers/Virtual_PDF_Printer"
 
-	to    = btsReplace([]byte("ipp://" + printerTo))
-	pref  = env.StringFb("DUMP_IPP", "")
-	seqId = new(uint64)
+	to = btsReplace([]byte("ipp://" + printerTo))
 
+	dumpsPath        = env.StringFb("DUMP_IPP_CONTENTS", "")
 	dumpReplacements = env.Bool("DUMP_REPLACEMENTS")
 	dumpOriginal     = env.Bool("DUMP_ORIGINAL")
+	appendBanner     = env.Bool("BANNER_APPEND")
+	bannerOnBack     = env.Bool("BANNER_ON_BACK")
+	seqId            = new(uint64)
 
-	pdfLocation = env.StringFb("PDF_LOCATION", os.TempDir())
+	pdfLocation = strings.TrimRight(env.StringFb("PDF_LOCATION", os.TempDir()), "/")
 )
+
+func init() {
+	// Load the logger
+	l, err := zerolog.ParseLevel(env.StringFb("LOG_LEVEL", "info"))
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("could not parse level")
+	}
+
+	zlog.Info().Stringer("level", l).Msg("using loglevel")
+
+	zerolog.SetGlobalLevel(l)
+}
 
 func main() {
 	if err := os.MkdirAll(pdfLocation, 0755); err != nil {
+		zlog.Fatal().Err(err).Str("pdf-folder", pdfLocation).Msg("cannot create pdf-folder")
 		panic(err)
 	}
 
 	privateRtr := router.New()
 	privateRtr.PanicHandler = func(ctx *fasthttp.RequestCtx, i interface{}) {
-		log.Error().Interface("error", i).Msg("received panic")
+		zlog.Error().Interface("error", i).Msg("received panic")
 	}
 	privateRtr.ANY("/{path:*}", cupsHandler)
-	if pref != "" && (dumpReplacements || dumpOriginal) {
-		pref += "/dumps"
-		os.RemoveAll(pref)
-		os.MkdirAll(pref, 0755)
+	if dumpsPath != "" && (dumpReplacements || dumpOriginal) {
+		dumpsPath += "/dumps"
+		// Recreate the dumps folder by recreating it entirely.
+		if err := os.RemoveAll(dumpsPath); err != nil && !os.IsNotExist(err) {
+			zlog.Fatal().Err(err).Str("path", dumpsPath).Msg("could not delete dumps folder")
+		}
+		zlog.Info().Str("path", dumpsPath).Msg("deleted previous dumps folder")
+
+		if err := os.MkdirAll(dumpsPath, 0755); err != nil {
+			zlog.Fatal().Str("path", dumpsPath).Err(err).Msg("could not create dumps folder")
+		}
+		zlog.Info().Msg("recreated dumps folder")
 	}
 
 	go func() {
 		err := fasthttp.ListenAndServe(cupsListen, privateRtr.Handler)
-		log.Err(err).Msg("started cups proxy")
+		zlog.Err(err).Msg("started cups proxy")
 		if err != nil {
-			log.Fatal().Msg("bye")
+			zlog.Fatal().Msg("bye")
 		}
 	}()
 
-	log.Info().Msg("Booted")
-	lifecycle.Finally(func() { log.Warn().Msg("Stopping") })
+	zlog.Info().Str("printer to", printerTo).Str("listen", cupsListen).Msg("Booted")
+	lifecycle.Finally(func() { zlog.Warn().Msg("Stopping") })
 	lifecycle.StopListener()
 }
 
-func writeToFile(seqId uint64, request, replaced bool, contents []byte) {
-	if pref == "" || (replaced && !dumpReplacements) || (!replaced && !dumpOriginal) {
-		return
+// Byter is an interface around the `Bytes` method returning a byte slice. Used
+// for more consistent logging of request/response contents.
+type (
+	Byter interface {
+		Bytes() []byte
+	}
+	byteSlice []byte
+)
+
+func (b byteSlice) Bytes() []byte {
+	return b
+}
+
+func writeToFile[T Byter](seqId uint64, request, replaced bool, contents T) error {
+	if dumpsPath == "" || (replaced && !dumpReplacements) || (!replaced && !dumpOriginal) {
+		return nil
 	}
 
 	var req, typ = "res", "orig"
@@ -78,41 +115,54 @@ func writeToFile(seqId uint64, request, replaced bool, contents []byte) {
 		typ = "repl"
 	}
 
-	name := fmt.Sprintf("%v/%v-%v-%v.bin", pref, seqId, req, typ)
+	name := fmt.Sprintf("%v/%v-%v-%v.bin", dumpsPath, seqId, req, typ)
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0755)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("could not open dump-file '%v'; %w", name, err)
 	}
 
-	defer f.Close()
-	if _, err := f.Write(contents); err != nil {
-		log.Err(err).Str("filename", name).Msg("could not write file")
+	// Ignore the error since it is
+	defer errCloserIgnore(f)
+	if _, err := f.Write(contents.Bytes()); err != nil {
+		return fmt.Errorf("could not write to dump-file '%v'; %w", name, err)
 	}
+
+	return nil
 }
 
-var requestPromise = xsync.NewIntegerMapOf[int32, promisePair]()
+// errCloserIgnore is a simple wrapper around an io.Closer that
+func errCloserIgnore(c io.Closer) {
+	// Ignore these errors, consider logging them in the future. These resource leaks
+	// should not be too problematic.
+	_ = c.Close()
+}
+
+// requestPromises maps all cups job-id's to structs that aid with interacting
+// with the data-retrieval promises.
+var requestPromises = xsync.NewIntegerMapOf[int32, promiseInteraction]()
 
 func cupsHandler(ctx *fasthttp.RequestCtx) {
 	seqId := atomic.AddUint64(seqId, 1)
+	body := slices.Clone(ctx.Request.Body())
 
-	// write the current request
-	body := ctx.Request.Body()
-
+	// Extract the type of operation. Consider extracting operation into a custom type for improved readability.
 	var operationId byte
-	if len(body) >= 3 {
+	if len(body) > 3 {
 		operationId = body[3]
 	}
 	var jobId int32
-	isCreate := operationId == 0x005
+	isCreate := operationId == 0x05
 	isPrint := operationId == 0x02 || operationId == 0x06
 
+	// Construct a logger
 	path := bytes.Trim(ctx.Request.URI().Path(), "/")
-	requestedUrl := fmt.Sprintf("ipp://%s/%s", cupsListen, []byte(path))
+	requestedUrl := fmt.Sprintf("ipp://%s/%s", cupsListen, path)
+	log := zlog.With().IPAddr("ip", ctx.RemoteIP()).Str("url", requestedUrl).Uint64("seq-id", seqId).Logger()
 
+	// Replace the url in the body, the actual printer's url is constant so does not
+	// need to be rebuilt every request.
 	from := btsReplace([]byte(requestedUrl))
-
-	// Replace the url
-	writeToFile(seqId, true, false, body)
+	log.Debug().Err(writeToFile[byteSlice](seqId, true, false, body)).Msg("written original request")
 	body = bytes.Replace(body, from, to, -1)
 
 	var b *bytes.Buffer
@@ -136,93 +186,101 @@ func cupsHandler(ctx *fasthttp.RequestCtx) {
 
 		// Store the pdf in a new reader, so the contents of `body` remain valid!
 		pdfReader := bytes.NewReader(slices.Clone(body[pdfStart:pdfEnd]))
-		// if body[pdfEnd] == 0x0A {
-		// 	pdfEnd++
-		// }
 
-		var v promisePair
+		var v promiseInteraction
 		log.Info().Msg("print triggered")
 		if !found {
 			// This is wierd
 			log.Error().Msg("got print and cannot extract job-id, very wierd.")
-			v = loadValues(ctx, jobId)
+			v = loadValues(log, ctx, jobId)
 		} else {
-			v, found = requestPromise.Load(jobId)
+			v, found = requestPromises.Load(jobId)
 			if !found {
 				log.Warn().Msg("did not find promise for job, i.e. job is unknown to proxy; trying to load new data")
-				v = loadValues(ctx, jobId)
+				v = loadValues(log, ctx, jobId)
 			}
 		}
 
 		v.callItIn()
-		ifile, err := v.pdfPromise.Await(lifecycle.ApplicationContext())
+		filePointer, err := v.pdfPromise.Await(lifecycle.ApplicationContext())
 		log.Err(err).Msg("got PDF to prepend")
 
-		if ifile != nil {
-			file := *ifile
-			defer file.Close()
+		if filePointer != nil {
+			file := *filePointer
+			defer errCloserIgnore(file)
 
 			tempReader := bytes.NewBuffer(make([]byte, 0, len(body)))
+			pdf := []io.ReadSeeker{file, pdfReader}
+			if appendBanner {
+				// Flip the pdfs to stitch
+				pdf[0], pdf[1] = pdf[1], pdf[0]
+			}
 
 			err := pdfcpu.MergeRaw([]io.ReadSeeker{file, pdfReader}, tempReader, nil)
-			log.Err(err).Msg("merged banner")
+			log.Err(err).Msg("merged banner with main print")
 			if err == nil {
-				io.Copy(newB, tempReader)
+				num, err := io.Copy(newB, tempReader)
+				log.Debug().Err(err).Int64("num", num).Msg("copied buffer")
 			} else {
 				newB.Write(body[pdfStart:pdfEnd])
 			}
 		}
 
-		newB.Write(body[pdfEnd:])
+		num, err := newB.Write(body[pdfEnd:])
+		log.Err(err).Int("num", num).Msg("written rest of request to new body")
 		b = newB
 	}
 
-	writeToFile(seqId, true, true, b.Bytes())
+	log.Debug().Err(writeToFile(seqId, true, true, b)).Msg("written replaced request")
 
-	hreq, _ := http.NewRequest(string(ctx.Method()), "http://"+printerTo, b)
-
+	// Construct the proxy request, since `b` is always a *bytes.Buffer and these get closed automatically
+	proxiedRequest, err := http.NewRequest(string(ctx.Method()), "http://"+printerTo, b)
+	log.Err(err).Msg("created request to proxy")
 	ctx.Request.Header.VisitAll(func(key, value []byte) {
-		hreq.Header.Add(string(key), strings.Replace(string(value), requestedUrl, printerTo, -1))
+		proxiedRequest.Header.Add(string(key), strings.Replace(string(value), requestedUrl[5:], printerTo, -1))
 	})
 
-	resp, err := http.DefaultClient.Do(hreq)
-	_ = hreq.Body.Close()
+	resp, err := http.DefaultClient.Do(proxiedRequest)
+	log.Debug().Err(err).Msg("proxied request")
+	err = proxiedRequest.Body.Close()
+	log.Debug().Err(err).Msg("closed request body")
 	if err != nil {
 		panic(err)
 	}
 
-	body, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	body, err = io.ReadAll(resp.Body)
+	log.Debug().Err(err).Msg("read entire response body")
+	err = resp.Body.Close()
+	log.Debug().Err(err).Msg("closed response body")
 	body = setReplace(body)
 
-	var rawHeaders = make(http.Header)
 	ctx.SetStatusCode(resp.StatusCode)
 	for k, values := range resp.Header {
 		for _, value := range values {
-			repl := strings.Replace(value, printerTo, requestedUrl, -1)
-			rawHeaders.Add(k, repl)
+			repl := strings.Replace(value, printerTo, requestedUrl[5:], -1)
 			ctx.Response.Header.Add(k, repl)
 		}
 	}
 
-	writeToFile(seqId, false, false, body)
+	log.Debug().Err(writeToFile[byteSlice](seqId, false, false, body)).Msg("written original response")
 	body = bytes.Replace(body, to, from, -1)
-	writeToFile(seqId, false, true, body)
+	log.Debug().Msg("replaced response body")
+	log.Debug().Err(writeToFile[byteSlice](seqId, false, true, body)).Msg("written replaced response")
 
 	if isCreate {
 		var found bool
 		jobId, found = extractInt("job-id", body)
 		if !found {
-			// Weirdness
-			log.Error().Msg("cannot deduce job-id where it should be present!")
+			// Weirdness happens here
+			log.Warn().Msg("cannot deduce job-id though it should be present!")
 		} else {
-			var pp promisePair
+			var pp promiseInteraction
 			if isCreate {
-				pp = loadValues(ctx, jobId)
+				pp = loadValues(log, ctx, jobId)
 			}
 
 			// Store as job
-			requestPromise.Store(jobId, pp)
+			requestPromises.Store(jobId, pp)
 		}
 	}
 
@@ -230,6 +288,8 @@ func cupsHandler(ctx *fasthttp.RequestCtx) {
 	if _, err := ctx.Write(body); err != nil {
 		panic(err)
 	}
+
+	log.Debug().Msg("written proxied-body")
 }
 
 // btsReplace takes a byte string and converts it to the representation used in CUPS
@@ -299,7 +359,7 @@ func setReplace(body []byte) []byte {
 	// Copy the remaining bytes
 	copy(result[appendedUntil:], body[matchedUntil:])
 
-	// Reslice, result is at most `len(body)` bytes long
+	// Re-slice the byte slice to the correct length.
 	return result[:appendedUntil+len(body)-matchedUntil]
 }
 

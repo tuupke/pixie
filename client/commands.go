@@ -136,10 +136,6 @@ func deferLog(log *zerolog.Logger, closer io.Closer, msg string) {
 	log.Err(closer.Close()).Msg("string")
 }
 
-func compareVersions(commandsVersions map[string]string) {
-	// TODO
-}
-
 var banner = struct {
 	Identifier uuid.UUID `json:"identifier"`
 	Hostname   string    `json:"hostname"`

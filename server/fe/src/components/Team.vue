@@ -1,6 +1,6 @@
 <template>
   <div class="p-inputgroup">
-    <Dropdown v-model="modelValue" :options="options" :filter="true" optionValue='guid' :filterFields="filterFields"  @change="change">
+    <Dropdown v-bind="modelValue" :options="options" :filter="true" optionValue='guid' :filterFields="filterFields"  @change="change">
       <template #option="slotProps">
         <slot name="option" v-bind="slotProps.option"></slot>
       </template>

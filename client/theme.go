@@ -13,10 +13,6 @@ var (
 	grey   = &color.Gray{Y: 123}
 )
 
-// customTheme is a simple demonstration of a bespoke theme loaded by a Fyne app.
-type customTheme struct {
-}
-
 func (ct) Color(c fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
 	switch c {
 	case theme.ColorNameBackground:

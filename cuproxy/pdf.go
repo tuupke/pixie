@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	pdfUnit        = env.StringFb("PDF_UNIT_SIZE", "mm")
+	pdfUnit        = env.StringFb("PDF_UNIT", "mm")
 	pdfSize        = env.StringFb("PDF_PAGE_SIZE", "A4")
 	pdfFontDir     = env.String("PDF_FONT_DIR")
 	pdfInLandscape = env.Bool("PDF_LANDSCAPE")
@@ -46,6 +46,10 @@ func BannerPage(log zerolog.Logger, outWrite io.Writer, data *Props, keys ...str
 	log.Info().Bool("landscape", pdfInLandscape).Int("num_keys", len(keys)).Msg("rendering new banner")
 
 	pdf := gofpdf.New(orientation, pdfUnit, pdfSize, pdfFontDir)
+	if bannerOnBack {
+		// Add an empty page if the banner is supposed to be printed on the back. Assumes a duplexer is installed.
+		pdf.AddPage()
+	}
 	pdf.AddPage()
 	pdf.SetFont("Arial", "", 12)
 

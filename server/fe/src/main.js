@@ -8,6 +8,7 @@ import PrimeVue from 'primevue/config';
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Dropdown from 'primevue/dropdown';
+import RadioButton from 'primevue/radiobutton';
 import FileUpload from 'primevue/fileupload';
 import Toolbar from 'primevue/toolbar';
 import SplitButton from 'primevue/splitbutton';
@@ -15,8 +16,12 @@ import ToastService from 'primevue/toastservice';
 import Accordion from 'primevue/accordion';
 import AccordionTab from 'primevue/accordiontab';
 import Toast from 'primevue/toast';
+import InputNumber from 'primevue/inputnumber';
+import SelectButton from 'primevue/selectbutton';
 import OrderList from 'primevue/orderlist';
 import DataTable from 'primevue/datatable';
+import Badge from 'primevue/badge';
+import InputSwitch from 'primevue/inputswitch';
 import Column from 'primevue/column';
 import Row from 'primevue/row';                     //optional for row
 import Team from '@/components/Team.vue'
@@ -30,6 +35,7 @@ import 'primeicons/primeicons.css'                           //icons
 import 'primeflex/primeflex.css';
 import Card from 'primevue/card';
 import Slider from "primevue/slider";
+import Checkbox from "primevue/checkbox";
 import axios from "axios";
 
 const app = createApp(App);
@@ -40,11 +46,16 @@ app.use(PrimeVue);
 app.use(ToastService);
 
 app.component('Button', Button)
+app.component('InputSwitch', InputSwitch)
+app.component('SelectButton', SelectButton)
+app.component('InputNumber', InputNumber)
+app.component('RadioButton', RadioButton)
 app.component('InputText', InputText)
 app.component('FileUpload', FileUpload)
 app.component('Dropdown', Dropdown)
 app.component('Card', Card)
 app.component('Toolbar', Toolbar)
+app.component('Badge', Badge)
 app.component('SplitButton', SplitButton)
 app.component('Toast', Toast)
 app.component('Accordion', Accordion)
@@ -57,6 +68,7 @@ app.component('Team', Team)
 app.component('Room', Room)
 app.component('TeamTable', TeamTable)
 app.component('Slider', Slider)
+app.component('Checkbox', Checkbox)
 
 app.mount('#app')
 

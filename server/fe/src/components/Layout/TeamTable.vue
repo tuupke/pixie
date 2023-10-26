@@ -72,7 +72,7 @@ export default {
     'x': {type: Number, required: true},
     'y': {type: Number, required: true},
     'rotation': {type: Number, required: false, default: 0},
-    'teamId': {type: Number, required: true},
+    'teamId': {type: String, required: false},
   },
 
   computed: mapStores(teamtableStore),

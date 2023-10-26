@@ -27,6 +27,7 @@ import (
 	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/tuupke/pixie/env"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 	"gorm.io/gorm"
@@ -38,7 +39,7 @@ import (
 	"github.com/tuupke/pixie/packets"
 )
 
-var listenAddr = EnvStringFb("LISTEN_ADDR", ":4000")
+var listenAddr = env.StringFb("LISTEN_ADDR", ":4000")
 
 type wString string
 
@@ -108,7 +109,7 @@ func init() {
 		log.Fatal().Msg("interfaces is required")
 	}
 
-	var natsAddr string = EnvString("NATS_ADDR")
+	var natsAddr string = env.String("NATS_ADDR")
 
 	if natsAddr == "" {
 		// Two cases, either an nats-addr is provided, or we need to choose one
@@ -272,41 +273,41 @@ func main() {
 	edc := crud.New[ExternalData](orm)
 
 	rtr := router.New()
-	api := rtr.Group("/api/")
+	api := rtr.Group("/api")
 
-	ed := api.Group("external_data/")
-	ed.GET("", edc.List)
-	ed.GET("{guid}/", edc.Get)
-	ed.PATCH("{guid}/", edc.Partial)
+	ed := api.Group("/external_data")
+	ed.GET("/", edc.List)
+	ed.GET("/{guid}", edc.Get)
+	ed.PATCH("/{guid}", edc.Partial)
 
 	pbc := crud.New[Problem](orm)
-	pb := api.Group("problem/")
-	pb.GET("", pbc.List)
+	pb := api.Group("/problem")
+	pb.GET("/", pbc.List)
 
 	stc := settings.CrudController()
-	st := api.Group("setting/")
-	st.GET("", stc.List)
-	st.GET("{guid}/", stc.Get)
-	st.PATCH("{guid}/", stc.Partial)
+	st := api.Group("/setting")
+	st.GET("/", stc.List)
+	st.GET("/{guid}", stc.Get)
+	st.PATCH("/{guid}", stc.Partial)
 
 	hoc := crud.New[Host](orm)
-	ho := api.Group("host/")
-	ho.GET("", hoc.List)
-	ho.GET("{guid}/", hoc.Get)
-	ho.POST("{guid}/window/", func(ctx *fasthttp.RequestCtx) {
+	ho := api.Group("/host")
+	ho.GET("/", hoc.List)
+	ho.GET("/{guid}/", hoc.Get)
+	ho.POST("/{guid}/window", func(ctx *fasthttp.RequestCtx) {
 		guid := ctx.UserValue("guid").(string)
 		lg := crud.LoggerFromRequest(ctx)
 		lg.Err(nc.Publish(guid+"."+pixie.Show, nil)).Str("guid", guid).Msg("sent show")
 	})
-	ho.DELETE("{guid}/window/", func(ctx *fasthttp.RequestCtx) {
+	ho.DELETE("/{guid}/window", func(ctx *fasthttp.RequestCtx) {
 		guid := ctx.UserValue("guid").(string)
 		lg := crud.LoggerFromRequest(ctx)
 		lg.Err(nc.Publish(guid+"."+pixie.Hide, nil)).Str("guid", guid).Msg("sent hide")
 	})
 
 	var pathHandler fasthttp.RequestHandler
-	if !EnvBoolFb("IS_DEV", false) {
-		dashboardLocation := EnvStringFb("DASHBOARD_LOCATION", "fe/dist/")
+	if !env.BoolFb("IS_DEV", false) {
+		dashboardLocation := env.StringFb("DASHBOARD_LOCATION", "fe/dist/")
 		pathHandler = (&fasthttp.FS{
 			Root:            dashboardLocation,
 			IndexNames:      []string{"index.html"},
@@ -336,7 +337,7 @@ func main() {
 
 	rtr.GET("/{path:*}", pathHandler)
 
-	api.GET("inventory", func(ctx *fasthttp.RequestCtx) {
+	api.GET("/inventory", func(ctx *fasthttp.RequestCtx) {
 		var ansible = bytes.NewBufferString(`clients:
   vars:
     ansible_user: root
@@ -363,7 +364,7 @@ func main() {
 		ctx.WriteString(ansible.String())
 	})
 
-	api.GET("contests", func(ctx *fasthttp.RequestCtx) {
+	api.GET("/contests", func(ctx *fasthttp.RequestCtx) {
 		lg := crud.LoggerFromRequest(ctx)
 
 		req, _ := http.NewRequest(http.MethodGet, djUrl()+"contests", nil)
@@ -381,10 +382,10 @@ func main() {
 		ctx.SetStatusCode(resp.StatusCode)
 	})
 
-	api.GET("djTeam", djTeamLoad)
-	api.GET("djProblem", djProblemLoad)
+	api.GET("/djTeam", djTeamLoad)
+	api.GET("/djProblem", djProblemLoad)
 
-	api.POST("tim-json", func(ctx *fasthttp.RequestCtx) {
+	api.POST("/tim-json", func(ctx *fasthttp.RequestCtx) {
 		lg := crud.LoggerFromRequest(ctx)
 
 		mpf, err := ctx.MultipartForm()
@@ -530,31 +531,20 @@ func main() {
 		}
 	}()
 
-	privateRtr := router.New()
-	privateRtr.ANY("/{path:*}", CupsHandler)
-
-	go func() {
-		err = fasthttp.ListenAndServe(cupsListen, privateRtr.Handler)
-		log.Err(err).Msg("started cups proxy")
-		if err != nil {
-			log.Fatal().Msg("bye")
-		}
-	}()
-
 	log.Info().Msg("Booted")
 	lifecycle.Finally(func() { log.Warn().Msg("Stopping") })
 	lifecycle.StopListener()
 }
 
 var numRequests sync.Map
-var checkEvery = EnvUInt64Fb("CHECK_PASSWORD_EVERY", 10)
+var checkEvery = env.UInt64Fb("CHECK_PASSWORD_EVERY", 10)
 
 func basicAuth(next func(ctx *fasthttp.RequestCtx)) func(ctx *fasthttp.RequestCtx) {
 	var basicAuthPrefix = []byte("Basic ")
 
 	return func(ctx *fasthttp.RequestCtx) { // func(w http.ResponseWriter, r *http.Request) {
 		auth := ctx.Request.Header.Peek("Authorization")
-		if EnvBoolFb("IS_DEV", false) {
+		if env.BoolFb("IS_DEV", false) {
 			auth = []byte("Basic YWRtaW46YWRtaW4=")
 		}
 
