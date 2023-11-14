@@ -1,5 +1,5 @@
 <template>
-  <svg width='650' height='600' viewBox='0 0 650 600'>
+  <svg id="drawnMap" width='650' height='600' viewBox='0 0 650 600'>
     <desc>
       You may click and drag the ellipse.
       Make the ellipse rotate by grabbing the small circle and dragging.
@@ -30,64 +30,29 @@ circle{
 
 </style>
 
-<script setup lang="js">
-
-export default {
-
-}
-
-
-var SVGLink_NS = 'http://www.w3.org/1999/xlink';
-var SVG_NS = 'http://www.w3.org/2000/svg';
-var svg = document.querySelector("svg");
-var deg = 180 / Math.PI;
-var rotating = false;
-var dragging = false;
-var impact = {
+<script setup>
+const SVGLink_NS = 'http://www.w3.org/1999/xlink';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const svg = document.querySelector("#drawnMap");
+const deg = 180 / Math.PI;
+let rotating = false;
+let dragging = false;
+let impact = {
   x: 0,
   y: 0
 };
-var m = { //mouse
+let m = { //mouse
   x: 0,
   y: 0
 };
-var delta = {
+let delta = {
   x: 0,
   y: 0
 };
-var ry = []; // elements array
-var objectsRy = [];
+let ry = []; // elements array
+let objectsRy = [];
 
-var hexaPolygon = {
-  properties: {
-    fill: 'url(#trama)',
-    points: "70,0 35.00000000000001,60.6217782649107 -34.999999999999986,60.62177826491071 -70,8.572527594031473e-15 -35.00000000000003,-60.621778264910695 35.00000000000001,-60.6217782649107 70,-1.7145055188062946e-14"
-  },
-  //parent: this.g,
-  tagName: 'polygon',
-  pos: {
-    x: 130,
-    y: 250
-  }
-}
-objectsRy.push(hexaPolygon);
-
-var pentaPolygon = {
-  properties: {
-    fill: 'url(#trama)',
-    points: "0,-70 66.57395614066074,-21.631189606246316 41.14496766047312,56.63118960624632 -41.144967660473114,56.63118960624632 -66.57395614066075,-21.63118960624631 -1.2858791391047208e-14,-70"
-  },
-  //parent: this.g,
-  tagName: 'polygon',
-  pos: {
-    x: 400,
-    y: 400
-  }
-}
-
-objectsRy.push(pentaPolygon);
-
-var ellipsePath = {
+let ellipsePath = {
   properties: {
     d: 'M-90,0 a90,50 0 1, 0 0,-1  z',
     fill: 'url(#trama)'
@@ -149,7 +114,7 @@ function Element(o, index) {
     return (this.Left + "," + this.Top + " " + this.Right + "," + this.Top + " " + this.Right + "," + this.Bottom + " " + this.Left + "," + this.Bottom + " " + this.Left + "," + this.Top);
   }
 
-  var box = {
+  let box = {
     properties: {
       points: this.pointsValue(),
       fill: 'none',
@@ -161,11 +126,11 @@ function Element(o, index) {
   }
   this.box = drawElement(box);
 
-  var leftTop = {
+  let leftTop = {
     properties: {
       cx: this.LT.x,
       cy: this.LT.y,
-      r: 6 ,
+      r: 6,
       fill: "blue"
     },
     parent: this.g,
@@ -175,15 +140,16 @@ function Element(o, index) {
   this.lt = drawElement(leftTop);
 
   this.update = function() {
-    var transf = 'translate(' + this.o.x + ', ' + this.o.y + ')' + ' rotate(' + (this.a * deg) + ')';
+    let transf = 'translate(' + this.o.x + ', ' + this.o.y + ')' + ' rotate(' + (this.a * deg) + ')';
     this.el.setAttributeNS(null, 'transform', transf);
     this.box.setAttributeNS(null, 'transform', transf);
     this.lt.setAttributeNS(null, 'transform', transf);
   }
+
 }
 
-for (var i = 0; i < objectsRy.length; i++) {
-  var el = new Element(objectsRy[i], i + 1);
+for (let i = 0; i < objectsRy.length; i++) {
+  let el = new Element(objectsRy[i], i + 1);
   el.update();
   ry.push(el)
 }
@@ -192,7 +158,7 @@ for (var i = 0; i < objectsRy.length; i++) {
 
 svg.addEventListener("mousedown", function(evt) {
 
-  var index = parseInt(evt.target.parentElement.id) - 1;
+  let index = parseInt(evt.target.parentElement.id) - 1;
   if (evt.target.tagName == ry[index].tagName) {
     dragging = index + 1;
     impact = oMousePos(svg, evt);
@@ -220,14 +186,14 @@ svg.addEventListener("mousemove", function(evt) {
   m = oMousePos(svg, evt);
 
   if (dragging) {
-    var index = dragging - 1;
+    let index = dragging - 1;
     ry[index].o.x = m.x + delta.x;
     ry[index].o.y = m.y + delta.y;
     ry[index].update();
   }
 
   if (rotating) {
-    var index = rotating - 1;
+    let index = rotating - 1;
     console.log(ry[index].A);
     ry[index].a = Math.atan2(ry[index].o.y - m.y, ry[index].o.x - m.x) - ry[index].A;
     ry[index].update();
@@ -237,7 +203,7 @@ svg.addEventListener("mousemove", function(evt) {
 // HELPERS
 
 function oMousePos(svg, evt) {
-  var ClientRect = svg.getBoundingClientRect();
+  let ClientRect = svg.getBoundingClientRect();
   return { //objeto
     x: Math.round(evt.clientX - ClientRect.left),
     y: Math.round(evt.clientY - ClientRect.top)
@@ -246,15 +212,15 @@ function oMousePos(svg, evt) {
 
 function drawElement(o) {
   /*
-  var o = {
+  let o = {
     properties : {
     x1:100, y1:220, x2:220, y2:70},
     parent:document.querySelector("svg"),
     tagName:'line'
   }
   */
-  var el = document.createElementNS(SVG_NS, o.tagName);
-  for (var name in o.properties) {
+  let el = document.createElementNS(SVG_NS, o.tagName);
+  for (let name in o.properties) {
     if (o.properties.hasOwnProperty(name)) {
       el.setAttributeNS(null, name, o.properties[name]);
     }

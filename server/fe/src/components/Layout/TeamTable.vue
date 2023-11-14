@@ -1,21 +1,29 @@
 <template>
   <g :transform="posCalc()" class="teamtable">
-    <rect :x="this.teamtableStore.areaX" :y="this.teamtableStore.areaY" style='stroke-width: 1px; stroke: #0b7ad1; fill: none;' :width="this.teamtableStore.areaWidth" :height="this.teamtableStore.areaHeight"></rect>
-    <svg :x="this.teamtableStore.tableX" :y="this.teamtableStore.tableY" :width="this.teamtableStore.tableWidth" :height="this.teamtableStore.tableHeight" style="overflow: visible">
+    <rect
+        :x="this.teamtableStore.areaX"
+        :y="this.teamtableStore.areaY"
+        style='stroke-width: 1px; stroke: #0b7ad1; fill: none;'
+        :width="this.teamtableStore.areaWidth"
+        :height="this.teamtableStore.areaHeight"/>
+    <rect
+        :x="this.teamtableStore.tableX"
+        :y="this.teamtableStore.tableY"
+        :width="this.teamtableStore.tableWidth"
+        :height="this.teamtableStore.tableHeight"
+        style="overflow: visible">
+    </rect>
 
-      <rect :width="this.teamtableStore.tableWidth" :height="this.teamtableStore.tableHeight" />
-      <text
-          x="50%" y="50%"
-          dominant-baseline="middle"
-          alignment-baseline="central"
-          font-family="sans-serif"
-          :font-size="this.teamtableStore.dFontSize"
-          font-style="normal"
-          text-anchor="middle"
-          font-weight="normal">
-        {{ teamId }}
-      </text>
-    </svg>
+    <text
+        dominant-baseline="middle"
+        alignment-baseline="central"
+        font-family="sans-serif"
+        :font-size="this.teamtableStore.dFontSize"
+        font-style="normal"
+        text-anchor="middle"
+        font-weight="normal">
+      {{ teamId }}
+    </text>
     <g>
       <rect v-for="(n,index) in this.teamtableStore.seatNum" :x="seatX(index)" :y="this.teamtableStore.seatY" :width="this.teamtableStore.seatWidth" :height="this.teamtableStore.seatHeight"/>
     </g>

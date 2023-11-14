@@ -2,28 +2,32 @@
 <!--  style="display: flex;flex-direction: column;justify-content: space-between;"-->
   <div class="col-9 h-screen flex flex-column" style="justify-content: space-between;">
     <svg id="layoutsvg" width="100%" height="100%">
-      <g class="room" id="room" v-for="room in rooms">
-        <Sequence
-            v-for="el in room.elements"
-            :separation=60
-            :axis="true"
-            :dir="false"
-            :x="el.base[0]"
-            :y="el.base[1]"
-            :rotation="el.base[2] ?? 0"
-            :num=1
-            :atRepeats=-1
-            :repeats="el.repeats"/>
-      </g>
+      <Draggable>
+        <TeamTable :x="50" :y="70" :rotation="0" team-id="1" />
+      </Draggable>
+
+<!--      <g class="room" id="room" v-for="room in rooms">-->
+<!--        <Sequence-->
+<!--            v-for="el in room.elements"-->
+<!--            :separation=60-->
+<!--            :axis="true"-->
+<!--            :dir="false"-->
+<!--            :x="el.base[0]"-->
+<!--            :y="el.base[1]"-->
+<!--            :rotation="el.base[2] ?? 0"-->
+<!--            :num=1-->
+<!--            :atRepeats=-1-->
+<!--            :repeats="el.repeats"/>-->
+<!--      </g>-->
     </svg>
     <div class="grid m-2">
 
       <div class="col-6">
-        Area Width
+        Area Width {{ teamtableStore.areaWidth }}dm
         <Slider v-model="teamtableStore.areaWidth"/>
       </div>
       <div class="col-6">
-        Area Height
+        Area Height {{ teamtableStore.areaHeight }}dm
         <Slider v-model="teamtableStore.areaHeight"/>
       </div>
       <div class="col-6">
@@ -136,7 +140,13 @@
 </template>
 
 <style scoped>
-svg {border: 1px solid red;}
+svg rect {
+  color: lightgray;
+}
+
+.dragable {
+  color: black;
+}
 </style>
 
 <script>
@@ -144,9 +154,10 @@ import {mapStores} from 'pinia'
 import {teamtableStore} from "@/stores/teamtable";
 import Sequence from "@/components/Layout/Sequence.vue";
 import TeamTable from "@/components/Layout/TeamTable.vue";
+import Draggable from "@/views/Draggable.vue";
 
 export default {
-  components: {TeamTable, Sequence},
+  components: {Draggable, TeamTable, Sequence},
   computed: {
     ...mapStores(teamtableStore),
   },
