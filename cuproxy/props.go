@@ -25,24 +25,31 @@ import (
 	"github.com/tuupke/pixie/lifecycle"
 )
 
-type Props struct {
-	ip net.IP
+type (
+	Props struct {
+		ip net.IP
 
-	*xsync.MapOf[string, string]
+		*xsync.MapOf[string, string]
 
-	latestData time.Time
-}
+		latestData time.Time
+	}
 
-type promiseInteraction struct {
-	callItIn   func()
-	pdfPromise *promise.Promise[*os.File]
-}
+	// promiseInteraction is a promise used to interact with external data and the
+	// banner pdf.
+	promiseInteraction struct {
+		callItIn   func()
+		pdfPromise *promise.Promise[*os.File]
+	}
+)
 
-var cpuPool, ioPool promise.Pool
-var printKeys = strings.Split(env.StringFb("PRINT_KEYS", "*"), ",")
-var includeBasicAuth = env.Bool("BASIC_AUTH_IN_DATA")
-var basicAuthUser = env.StringFb("BASIC_AUTH_USERNAME", "ba_username")
-var basicAuthPass = env.StringFb("BASIC_AUTH_PASSWORD", "ba_password")
+var (
+	cpuPool, ioPool  promise.Pool
+	printKeys        = strings.Split(env.StringFb("PRINT_KEYS", "*"), ",")
+	includeBasicAuth = env.Bool("BASIC_AUTH_IN_DATA")
+	basicAuthUser    = env.StringFb("BASIC_AUTH_USERNAME", "ba_username")
+	basicAuthPass    = env.StringFb("BASIC_AUTH_PASSWORD", "ba_password")
+	alwaysFreshData  = env.Bool("BANNER_DATA_ALWAYS_FRESH")
+)
 
 func init() {
 	cpuPoolA, err := ants.NewPool(runtime.NumCPU())
@@ -66,7 +73,7 @@ var empty = e{}
 func loadValues(log zerolog.Logger, ctx *fasthttp.RequestCtx, jobId int32) promiseInteraction {
 	// Load or create a Props instance
 	data := LoadFromRequest(ctx)
-	isInitial := data.latestData.IsZero()
+	isInitial := data.latestData.IsZero() || alwaysFreshData
 
 	log = log.With().IPAddr("for", data.ip).Int32("job-id", jobId).Logger()
 
@@ -82,25 +89,19 @@ func loadValues(log zerolog.Logger, ctx *fasthttp.RequestCtx, jobId int32) promi
 	fanin := promise.New(func(resolve func(e), reject func(error)) {
 		log.Info().Bool("will-wait", isInitial).Int("webhooks-to-finish", waitFor).Msg("awaiting finish")
 
-	outer:
-		for {
+		var ctxEnd bool
+		for !ctxEnd && waitFor > 0 {
 			if isInitial {
 				<-c
 				waitFor--
 				log.Debug().Int("remaining", waitFor).Msg("waiting for more hooks")
-				if waitFor <= 0 {
-					break outer
-				}
 			} else {
 				select {
 				case <-c:
 					waitFor--
-					if waitFor <= 0 {
-						break outer
-					}
 				case <-awaitCtx.Done():
 					log.Warn().Msg("called in")
-					break outer
+					ctxEnd = true
 				}
 			}
 		}
@@ -139,10 +140,15 @@ func (m mapWriter) MarshalZerologObject(e *zerolog.Event) {
 	}
 }
 
-func replaceParameters(template string, data *Props) (string, mapWriter) {
+func replaceParameters(template string, data *Props, webhookname string) (string, mapWriter) {
 	// params stores the retrieved parameters, this trick works since a slice is a pointer type.
 	d := make(mapWriter)
 	return fasttemplate.New(template, "{{", "}}").ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		if tag == "webhook_name" {
+			d[tag] = webhookname
+			return w.Write([]byte(webhookname))
+		}
+
 		v, _ := data.Load(tag)
 		d[tag] = v
 		return w.Write([]byte(v))
@@ -153,7 +159,7 @@ var (
 	imageKey    = env.StringFb("IMAGE_KEY", "image")
 	props       = xsync.NewMapOf[Props]()
 	keyTemplate = env.String("WEBHOOK_KEY_TEMPLATE")
-	downloadTo  = env.StringFb("DOWNLOAD_DIR", os.TempDir())
+	downloadTo  = env.StringFb("WEBHOOK_TEMP_DIR", os.TempDir())
 
 	toCallString = env.String("WEBHOOKS_TO_CALL")
 	toCall       endpointsSet
@@ -272,6 +278,7 @@ func LoadFromRequest(ctx *fasthttp.RequestCtx) *Props {
 		baseData[basicAuthPass] = pass
 	}
 
+	baseData["requesting_ip"] = ip.String()
 	return Load(ip, baseData, user, pass, ctx.Request.URI().String())
 }
 

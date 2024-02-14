@@ -1,36 +1,100 @@
 <template>
-  <g :transform="posCalc()" class="teamtable">
+  <g :transform="posCalc()" ref="slot" class="team-area">
     <rect
-        :x="this.teamtableStore.areaX"
-        :y="this.teamtableStore.areaY"
-        style='stroke-width: 1px; stroke: #0b7ad1; fill: none;'
-        :width="this.teamtableStore.areaWidth"
-        :height="this.teamtableStore.areaHeight"/>
+        class="background"
+        :x="settings.areaX"
+        :y="settings.areaY"
+        :width="settings.areaWidth"
+        :height="settings.areaHeight"/>
+
     <rect
-        :x="this.teamtableStore.tableX"
-        :y="this.teamtableStore.tableY"
-        :width="this.teamtableStore.tableWidth"
-        :height="this.teamtableStore.tableHeight"
-        style="overflow: visible">
+        class="element"
+        :x="settings.tableX"
+        :y="settings.tableY"
+        :width="settings.tableWidth"
+        :height="settings.tableHeight"
+
+        style="overflow: visible;">
     </rect>
+
 
     <text
         dominant-baseline="middle"
         alignment-baseline="central"
         font-family="sans-serif"
-        :font-size="this.teamtableStore.dFontSize"
+        :x="settings.tableX + settings.tableWidth/2"
+        :y="settings.tableY + settings.tableHeight/2"
+        :font-size="settings.dFontSize"
         font-style="normal"
         text-anchor="middle"
         font-weight="normal">
       {{ teamId }}
     </text>
-    <g>
-      <rect v-for="(n,index) in this.teamtableStore.seatNum" :x="seatX(index)" :y="this.teamtableStore.seatY" :width="this.teamtableStore.seatWidth" :height="this.teamtableStore.seatHeight"/>
-    </g>
+
+    <rect
+          class="element"
+          v-for="(n,index) in settings.seatNum"
+          :x="seatX(index)"
+          :y="settings.seatY"
+          :width="settings.seatWidth"
+          :height="settings.seatHeight"/>
+
+    <rect
+        class="outline"
+        :x="settings.areaX"
+        :y="settings.areaY"
+
+        :width="settings.areaWidth"
+        :height="settings.areaHeight"/>
+    />
   </g>
 </template>
 
 <style>
+
+.background {
+  fill: none;
+}
+
+rect.outline {
+  fill: none;
+  stroke-width: 1px;
+  stroke: #476cff;
+}
+
+.team-area:hover .outline {
+  stroke-width: 3px;
+}
+
+
+rect.element {
+  fill: #fff;
+  stroke: #444;
+}
+
+.area .element {
+  stroke: #444;
+  stroke-width: 1;
+  stroke-dasharray: none;
+  stroke-linecap: butt;
+  stroke-dashoffset: 0;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 4;
+  fill-rule: nonzero;
+  opacity: 1;
+
+  fill: #fff;
+}
+
+.area:hover, .area .selected {
+  stroke-width: 2;
+}
+
+.noteam {
+
+}
+
+
 .teamtable rect {
   stroke: #444;
   stroke-width: 1;
@@ -71,30 +135,35 @@
 
 </style>
 
-<script>
-import {mapStores} from 'pinia'
-import {teamtableStore} from "@/stores/teamtable";
+<script setup>
 
-export default {
-  props: {
+// import {mapStores} from 'pinia'
+import {teamareaStore} from "@/stores/teamarea";
+import {onMounted, defineProps, ref} from "vue";
+
+const props = defineProps({
     'x': {type: Number, required: true},
     'y': {type: Number, required: true},
     'rotation': {type: Number, required: false, default: 0},
     'teamId': {type: String, required: false},
-  },
+})
 
-  computed: mapStores(teamtableStore),
-  methods: {
-    posCalc: function () {
-      return `translate(${this.x}, ${this.y}) rotate(${this.rotation})`
-    },
-    seatX: function(i) {
-      return -this.teamtableStore.tableWidth / 2 + this.teamtableStore.seatSep / 2 + i * (this.teamtableStore.seatWidth + this.teamtableStore.seatSep) + this.teamtableStore.offsetX;
-    }
-  },
+let group = ref(null)
 
-  mounted() {
-    this.teamtableStore.registerTeamId(this.teamId)
-  }
+function posCalc() {
+  return `translate(${props.x}, ${props.y}) rotate(${props.rotation})`
 }
+
+function seatX(i) {
+  return settings.tableX + settings.seatPadding
+      + i * (settings.seatWidth + settings.seatSep + settings.seatPadding);
+}
+
+const settings = teamareaStore()
+
+onMounted(() => {
+  settings.registerTeamId(props.teamId)
+})
+
+
 </script>

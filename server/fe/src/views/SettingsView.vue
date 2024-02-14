@@ -1,86 +1,108 @@
 <template>
-<!--  style="display: flex;flex-direction: column;justify-content: space-between;"-->
-  <div class="col-9 h-screen flex flex-column" style="justify-content: space-between;">
-    <svg id="layoutsvg" width="100%" height="100%">
-      <Draggable>
-        <TeamTable :x="50" :y="70" :rotation="0" team-id="1" />
-      </Draggable>
+  <!--  style="display: flex;flex-direction: column;justify-content: space-between;"-->
+  <div class="col-9 h-screen flex flex-column" style="justify-content: space-between;"  ref="map">
+    <svg id="layoutsvg" width="100%" height="100%" @mousemove="maybeTranslateRotate"  @mouseup="resetTranslateRotate">
+      <!--      <TeamTable :x="53" :y="50" :rotation="rot" team-id="100"/>-->
 
-<!--      <g class="room" id="room" v-for="room in rooms">-->
-<!--        <Sequence-->
-<!--            v-for="el in room.elements"-->
-<!--            :separation=60-->
-<!--            :axis="true"-->
-<!--            :dir="false"-->
-<!--            :x="el.base[0]"-->
-<!--            :y="el.base[1]"-->
-<!--            :rotation="el.base[2] ?? 0"-->
-<!--            :num=1-->
-<!--            :atRepeats=-1-->
-<!--            :repeats="el.repeats"/>-->
-<!--      </g>-->
+      <g :transform="'scale('+scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
+        <Sequence
+            v-for="(el, elIndex) in room.elements"
+            :separation=60
+            :axis=true
+            :dir=false
+            :x=el.base[0]
+            :y=el.base[1]
+            :rotation=el.base[2]??0
+            :num=1
+            :atRepeats=-1
+            :repeats=el.repeats
+            :relevant-room-element=[roomIndex,elIndex]
+        />
+      </g>
     </svg>
     <div class="grid m-2">
 
       <div class="col-6">
-        Area Width {{ teamtableStore.areaWidth }}dm
-        <Slider v-model="teamtableStore.areaWidth"/>
+        Area Width {{ settings.areaWidth }}dm
+        <Slider v-model="settings.areaWidth"/>
       </div>
       <div class="col-6">
-        Area Height {{ teamtableStore.areaHeight }}dm
-        <Slider v-model="teamtableStore.areaHeight"/>
+        Area Height {{ settings.areaHeight }}dm
+        <Slider v-model="settings.areaHeight"/>
       </div>
+      <div class="col-6">
+        Area offsetX {{ settings.areaOffsetX }}%
+        <Slider v-model="settings.areaOffsetX" :min=0 :max=100
+        />
+      </div>
+      <div class="col-6">
+        Area offsetY {{ settings.areaOffsetY }}%
+        <Slider v-model="settings.areaOffsetY" :min=0 :max=100
+        />
+      </div>
+
+      <div class="col-6">
+        Area paddingX {{ settings.areaPaddingX }}dm
+        <Slider v-model="settings.areaPaddingX"/>
+      </div>
+      <div class="col-6">
+        Area paddingY {{ settings.areaPaddingY }}dm
+        <Slider v-model="settings.areaPaddingY"/>
+      </div>
+
+      <div class="col-6">
+        table offset x {{ settings.tableOffsetX }}dm
+        <Slider v-model="settings.tableOffsetX" :min="-settings.areaPaddingX" :max="settings.areaPaddingX"/>
+      </div>
+      <div class="col-6">
+        table offset y {{ settings.tableOffsetY }}dm
+        <Slider v-model="settings.tableOffsetY" :min="-settings.areaPaddingY" :max="settings.areaPaddingY"/>
+      </div>
+
       <div class="col-6">
         Seat Separation
-        <Slider v-model="teamtableStore.seatSep"/>
+        <Slider v-model="settings.seatSep"/>
+      </div>
+      <div class="col-6">
+        Seat Margin
+        <Slider v-model="settings.seatMargin"/>
       </div>
       <div class="col-6">
         Seat Distance
-        <Slider v-model="teamtableStore.seatDist"/>
-      </div>
-      <div class="col-6">
-        Margin-x
-        <Slider v-model="teamtableStore.marginX"/>
-      </div>
-      <div class="col-6">
-        Margin-y
-        <Slider v-model="teamtableStore.marginY"/>
+        <Slider v-model="settings.seatDist" :min=0 :max="settings.areaHeight - settings.seatHeight"/>
       </div>
 
       <div class="col-6">
         Num Seats
-        <Slider v-model="teamtableStore.seatNum"/>
+        <Slider v-model="settings.seatNum"/>
       </div>
       <div class="col-6">
         Seat height
-        <Slider v-model="teamtableStore.seatHeight"/>
-      </div>
-
-      <div class="col-6">
-        offsetX
-        <Slider v-model="teamtableStore.offsetX" :min="-teamtableStore.marginX" :max="teamtableStore.marginX"/>
+        <Slider v-model="settings.seatHeight"/>
       </div>
       <div class="col-6">
-        offsetY
-        <Slider v-model="teamtableStore.offsetY" :min="-teamtableStore.marginY" :max="teamtableStore.marginY"/>
+        Seat padding
+        <Slider v-model="settings.seatPadding"/>
       </div>
     </div>
   </div>
   <div class="col-3" v-if="selectedElement">
-    <Accordion multiple :activeIndex='[0]'  >
+    <Accordion multiple :activeIndex='[0]'>
       <AccordionTab v-for="(repeat, k) in selectedElement.repeats">
         <template #header>
             <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">{{ repeat.type }}</span>
-                <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded aria-label="confirm deletion" v-if="confirmdelete[k]"  v-on:click.stop="deleteRepeats(k)"/>
-                <Button class="ml-auto" size="small" icon="pi pi-times" severity="secondary" rounded aria-label="Delete" outlined v-else v-on:click.stop="toggleDelete(k)"/>
+                <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded
+                        aria-label="confirm deletion" v-if="confirmdelete[k]" v-on:click.stop="deleteRepeats(k)"/>
+                <Button class="ml-auto" size="small" icon="pi pi-times" severity="secondary" rounded aria-label="Delete"
+                        outlined v-else v-on:click.stop="toggleDelete(k)"/>
             </span>
         </template>
         <div class="flex flex-column">
           <div class="flex flex-row">
             <div class="flex flex-shrink-0 flex-column m-2">
               <label :for="'type'+k">Shape type</label>
-              <SelectButton v-model="repeat.type" :options="sequenceTypes" :inputId="'type'+k" />
+              <SelectButton v-model="repeat.type" :options="sequenceTypes" :inputId="'type'+k"/>
             </div>
 
             <div class="flex-grow-1 flex-shrink-1 flex flex-column m-2 w-full" v-if="repeat.type === 'Circle'">
@@ -92,7 +114,7 @@
           <div class="flex-row field-checkbox m-2">
             <Checkbox v-model="repeat.axis" :inputId="k+'axis'" :binary="true"/>
             <label v-if="repeat.type === 'Line'" :for="k+'axis'"> horizontal</label>
-            <label v-else :for="k+'axis'" > clockwise </label>
+            <label v-else :for="k+'axis'"> clockwise </label>
           </div>
 
           <div class="flex-row field-checkbox m-2">
@@ -115,24 +137,25 @@
 
             <div class="p-inputgroup">
               <span v-if="repeat.type === 'Circle'" class="p-inputgroup-addon">
-                  <Checkbox v-model="repeat.equivalentSpaced" :binary="true" />
+                  <Checkbox v-model="repeat.equivalentSpaced" :binary="true"/>
               </span>
               <InputNumber
-                :inputId="'separation'+k"
-                :disabled="repeat.equivalentSpaced && repeat.type==='Circle'"
-                :modelValue="repeat.equivalentSpaced && repeat.type==='Circle' ? 360/Math.max(1, repeat.num) : repeat.separation"
-                @update:model-value="newValue => repeat.separation = newValue"
-                showButtons
-                :suffix="repeat.type === 'Circle' ? '°':' cm'" />
+                  :inputId="'separation'+k"
+                  :disabled="repeat.equivalentSpaced && repeat.type==='Circle'"
+                  :modelValue="repeat.equivalentSpaced && repeat.type==='Circle' ? 360/Math.max(1, repeat.num) : repeat.separation"
+                  @update:model-value="newValue => repeat.separation = newValue"
+                  showButtons
+                  :suffix="repeat.type === 'Circle' ? '°':' cm'"/>
             </div>
           </div>
 
 
           <div class="m-2">
             <label :for="'extraRotation'+k">Extra rotation</label>
-            <InputNumber class="p-inputgroup" :id="'extraRotation'+k" v-model="repeat.extra" suffix="°" :min=-360 :max=360 show-buttons />
+            <InputNumber class="p-inputgroup" :id="'extraRotation'+k" v-model="repeat.extra" suffix="°" :min=-360
+                         :max=360 show-buttons/>
           </div>
-<!--        </div>-->
+          <!--        </div>-->
         </div>
       </AccordionTab>
     </Accordion>
@@ -149,107 +172,157 @@ svg rect {
 }
 </style>
 
-<script>
-import {mapStores} from 'pinia'
-import {teamtableStore} from "@/stores/teamtable";
+<script setup>
+
+const scale=0.8
+
+import {teamareaStore} from "@/stores/teamarea";
+import {roomTranslatorStore} from "@/stores/roomTranslator";
 import Sequence from "@/components/Layout/Sequence.vue";
-import TeamTable from "@/components/Layout/TeamTable.vue";
-import Draggable from "@/views/Draggable.vue";
+import {onMounted, onUnmounted, reactive, ref} from "vue";
+import { useScroll } from '@vueuse/core';
 
-export default {
-  components: {Draggable, TeamTable, Sequence},
-  computed: {
-    ...mapStores(teamtableStore),
-  },
-  methods: {
-    toggleDelete(k) {
-      this.confirmdelete[k] = true
-      const that=this;
-      window.setTimeout(function(){delete that.confirmdelete[k]}, 1000)
-    },
-    deleteRepeats(k) {
-      this.rooms[0].elements[0].repeats.splice(k, 1);
-      delete this.confirmdelete[k]
-    }
-  },
-  data() {
-    let data = {
-      ShapeTypes: [
-        {name: 'Line'},
-        {name: 'Circle'},
-      ],
+const settings = teamareaStore()
+const translateRotate = roomTranslatorStore()
 
-      sequenceTypes: ['Line', 'Circle'],
-      selectedElement: null,
-      negative: false,
-      isLine: true,
-      inX: true,
-      isEqui: true,
-      confirmdelete: [],
-      extra: 0,
-      rooms: [
-        {
-          name: "Room",
-          type: "Rect",
-          coords: [[0, 0], [10, 0], [10, 10], [0, 10]],
-          elements: [
-            {
-              base: [100, 100],
-              repeats: [
-                {
-                  type: "Line",
-                  num: 3,
-                  axis: true,
-                  equivalentSpaced: true,
-                  dir: false,
-                  },
-                  {
-                    type: "Circle",
-                    num: 2,
-                    axis: false,
-                    separation: 50,
-                    dir: false,
-                },
-                {
-                  type: "Line",
-                  axis: false,
-                  dir: true,
-                  separation: 50,
-                },
-              ]
-            }
-          ]
-        }
-      ]
-    }
+function scroll(state) {
+  console.log(state) // {x, y, isScrolling, arrivedState, directions}
+}
 
-    // Ensure all repeats have correct props
-    const fallback = {
-      'type': 'Line',
-      'extra': 0,
-      'num': 1,
-      'axis': false,
-      'dir': false,
-      'radius': 100,
-      'separation': 100,
-      'equivalentSpaced': true,
-    }
+const map = ref(null)
+useScroll(map, {onScroll: (e) => console.log(e)});
 
-    for (let ri = 0; ri < data.rooms.length; ri++) {
-      for (let li = 0; li < data.rooms[ri].elements.length; li++) {
-        data.rooms[ri].elements[li].repeats = data.rooms[ri].elements[li].repeats.map(e => {
-          return {...fallback, ...e}
-        })
+function toggleDelete(k) {
+  confirmdelete[k] = true
+  window.setTimeout(function () {
+    delete confirmdelete[k]
+  }, 1000)
+}
+
+function deleteRepeats(k) {
+  rooms[0].elements[0].repeats.splice(k, 1);
+  delete confirmdelete[k]
+}
+
+const sequenceTypes = ['Line', 'Circle'];
+
+let data = [
+  {
+    name: "Room",
+    type: "Rect",
+    coords: [[0, 0], [10, 0], [10, 10], [0, 10]],
+    elements: [
+      {
+        base: [100, 100],
+        repeats: [
+          {
+            type: "Line",
+            num: 3,
+            axis: true,
+            equivalentSpaced: true,
+            dir: false,
+          },
+          {
+            type: "Circle",
+            num: 2,
+            axis: false,
+            separation: 50,
+            dir: false,
+          },
+          // {
+          //   type: "Line",
+          //   axis: false,
+          //   dir: true,
+          //   separation: 50,
+          // },
+        ]
       }
+    ]
+  }
+];
+
+// Ensure all repeats have correct props
+const fallback = {
+  'type': 'Line',
+  'extra': 0,
+  'num': 1,
+  'axis': false,
+  'dir': false,
+  'radius': 100,
+  'separation': 100,
+  'equivalentSpaced': true,
+}
+
+for (let ri = 0; ri < data.length; ri++) {
+  for (let li = 0; li < data[ri].elements.length; li++) {
+    data[ri].elements[li].repeats = data[ri].elements[li].repeats.map(e => {
+      return {...fallback, ...e}
+    })
+  }
+}
+
+const rooms = reactive(data)
+const selectedElement = ref(rooms[0].elements[0]);
+const confirmdelete = ref([]);
+
+function maybeTranslateRotate(e) {
+  const clamping = 5
+
+  if (translateRotate.translatingRoom) {
+
+    const room = translateRotate.translatingRoom[0]
+    const el = translateRotate.translatingRoom[1]
+
+    // coord is in svg space
+    const coord = offset(e, room, el)
+
+    if (false) {
+      coord[0] = Math.round(coord[0]/clamping) * clamping
+      coord[1] = Math.round(coord[1]/clamping) * clamping
     }
 
-    data.selectedElement = data.rooms[0].elements[0];
+    rooms[room].elements[el].base[0] = coord[0]
+    rooms[room].elements[el].base[1] = coord[1]
+  } else if (translateRotate.rotatingRoom) {
+    const room = translateRotate.rotatingRoom[0]
+    const el = translateRotate.rotatingRoom[1]
 
-    // console.log(data);
+    // coord is in svg space
 
-    return data
+    // TODO recalculate coord to be precisely 'on the dot'.
+    const coord = offset(e, room, el)
 
+    const xDiff = coord[0] - rooms[room].elements[el].base[0]
+    const yDiff = coord[1] - rooms[room].elements[el].base[1]
+
+    const upVect = Math.atan2(-5, 0)
+
+    let angle = (Math.atan2(yDiff, xDiff) - upVect)* 180 / Math.PI
+    // angle = atan2(vector2.y, vector2.x) - atan2(vector1.y, vector1.x);
+
+
+
+    // let angle = 90- Math.atan2(xDiff,yDiff) * 180 / Math.PI
+    if (false) {
+      angle = Math.round(angle/clamping)*clamping
+    }
+
+    rooms[room].elements[el].base[2] = angle
   }
+}
+
+function offset(e) {
+  return [
+    e.clientX + translateRotate.offset[0],
+    e.clientY + translateRotate.offset[1]
+  ];
+}
+
+function resetTranslateRotate() {
+  translateRotate.translatingRoom = null;
+  translateRotate.rotatingRoom = null;
+  translateRotate.base = null;
+  translateRotate.offset = null;
 }
 
 </script>

@@ -48,6 +48,16 @@ func BoolFb(key string, fb bool) bool {
 	return fb
 }
 
+func FloatFb(key string, fb float64) float64 {
+	str := String(key)
+	i, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return fb
+	}
+
+	return i
+}
+
 func IntFb(key string, fb int) int {
 	str := String(key)
 	i, err := strconv.Atoi(str)

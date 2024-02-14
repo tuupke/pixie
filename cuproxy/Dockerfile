@@ -11,8 +11,14 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-w -s" 
 # Build a new image, copy everything over and set the entrypoint
 FROM alpine:3
 
+COPY --from=build /cuproxy /cuproxy
+
 EXPOSE 631
 
-COPY --from=build /cuproxy /cuproxy
+# Include cups and cups-filters to convert to pdf.
+RUN apk add --no-cache cups cups-filters
+
+ENV PPD_LOCATION=/usr/share/ppd/cupsfilters/Generic-PDF_Printer-PDF.ppd
+ENV CUPSFILTER_LOCATION=/usr/sbin/cupsfilter
 
 CMD ["/cuproxy"]

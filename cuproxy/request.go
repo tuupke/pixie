@@ -43,7 +43,7 @@ var (
 	// etagCache is an etag cache. Stores the retrieved etag for some url
 	etagCache  = xsync.NewMapOf[etagPair]()
 	pixieNonce = func() string {
-		nonce := env.String("HTTP_REQUEST_NONCE")
+		nonce := env.String("WEBHOOK_REQUEST_NONCE")
 		if nonce == "" {
 
 			const pixieNonceAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
@@ -57,9 +57,11 @@ var (
 			nonce = string(b)
 		}
 
-		zlog.Info().Str("nonce", nonce).Msg("using X-Pixie-Nonce value")
+		zlog.Info().Str("nonce", nonce).Msg("X-Pixie-Nonce value")
 		return nonce
 	}()
+
+	maxWebhookTime = env.DurationFb("WEBHOOK_MAX_DURATION", time.Second*30)
 )
 
 func Do(ctx context.Context, log zerolog.Logger, url, verb string, ip net.IP, requestBody io.Reader) (responseBody io.ReadCloser, responseType string, loaded bool, err error) {
@@ -118,7 +120,7 @@ func Do(ctx context.Context, log zerolog.Logger, url, verb string, ip net.IP, re
 }
 
 func (ep endpoint) executeRequest(ctx context.Context, log zerolog.Logger, data *Props) (io.ReadCloser, string, bool, error) {
-	u, params := replaceParameters(ep.url, data)
+	u, params := replaceParameters(ep.url, data, ep.name)
 	log.Debug().Str("original", ep.url).Object("relevant-data", params).Str("result", u).Msg("replaced url")
 
 	var reqBody io.Reader
@@ -130,7 +132,7 @@ func (ep endpoint) executeRequest(ctx context.Context, log zerolog.Logger, data 
 		})
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*2)
+	ctx, cancel := context.WithTimeout(ctx, maxWebhookTime)
 	defer cancel()
 
 	return Do(ctx, log, u, ep.method, data.ip, reqBody)
@@ -138,20 +140,23 @@ func (ep endpoint) executeRequest(ctx context.Context, log zerolog.Logger, data 
 
 func (ep endpoint) handleResponse(log zerolog.Logger, respBody io.ReadCloser, respType string, data *Props) (extra endpoints) {
 	extra = make(endpoints, 0, 3)
-	switch respType = strings.Split(respType, ";")[0]; respType {
+	respType = strings.Split(respType, ";")[0]
+	log.Info().Str("response_type", respType).Msg("handling response")
+	switch respType {
 	case "image/jpeg", "image/png", "image/gif":
 		// Store in file and
 		fn := downloadTo + "/" + data.ip.String() + "." + respType[6:]
 		f, err := os.OpenFile(fn, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
-		log.Err(err).Str("filename", fn).Msg("storing image")
+		log.Debug().Err(err).Str("filename", fn).Msg("storing image")
 		if err != nil {
+			log.Warn().Err(err).Str("filename", fn).Msg("could not open imagefile")
 			break
 		}
 
 		numbts, err := io.Copy(f, respBody)
-		log.Err(err).Int64("num-bytes", numbts).Str("filename", fn).Msg("written image")
+		log.Debug().Err(err).Int64("num-bytes", numbts).Str("filename", fn).Msg("written image")
 		if err != nil {
-			log.Warn().Msg("image writing failed, not storing the path")
+			log.Warn().Str("filename", fn).Msg("image writing failed, not storing the path")
 			break
 		}
 
@@ -161,8 +166,8 @@ func (ep endpoint) handleResponse(log zerolog.Logger, respBody io.ReadCloser, re
 	case "application/json":
 		var jsonData map[string]interface{}
 		err := json.NewDecoder(respBody).Decode(&jsonData)
-		log.Err(err).Msg("could not decode json")
 		if err != nil {
+			log.Err(err).Msg("could not decode json")
 			break
 		}
 
@@ -177,7 +182,7 @@ func (ep endpoint) handleResponse(log zerolog.Logger, respBody io.ReadCloser, re
 			if k == imageKey {
 				// Check for valid url
 				_, err := url.Parse(str)
-				log.Err(err).Str("url", str).Str("key", k).Msg("url found to call, will call if valid")
+				log.Debug().Err(err).Str("url", str).Str("key", k).Msg("url found to call, will call if valid")
 
 				if err == nil {
 					extra = append(extra, endpoint{
@@ -191,14 +196,14 @@ func (ep endpoint) handleResponse(log zerolog.Logger, respBody io.ReadCloser, re
 				// Replace they key with the contents of the template
 				orig := k
 				var params mapWriter
-				k, params = replaceParameters(keyTemplate, data)
+				k, params = replaceParameters(keyTemplate, data, ep.name)
 				log.Debug().Str("original", orig).Str("template", keyTemplate).Object("relevant-data", params).Str("result", k).Msg("filled template for key")
 			}
 
 			data.Store(k, str)
 		}
 	default:
-		log.Warn().Str("content-type", respType).Msg("unsupported content type encountered, ignoring")
+		log.Warn().Str("content-type", respType).Msg("unsupported content type encountered, ignored")
 	}
 
 	return

@@ -1,90 +1,78 @@
 <template>
-    <!--    <polyline :points="outline" fill="none"/>-->
-    <g ref="slot" transform="">
-      <slot></slot>
-    </g>
-    <circle
-        :belongsTo="slot"
-        r="5"
-        style="z-index: 1000"
-        fill="blue"
-        :cx="tl.x"
-        :cy="tl.y"
-    />
+  <g :transform="'translate(' + (x) + ',' + (y) +') rotate('+rotation+')'">
+
+  <line
+  :x1=0
+  :y1=0
+  :x2=0
+  :y2=-distance
+  style="stroke:gray;stroke-width:1"
+  />
+
+  <g transform="translate(0, -11) rotate(45)">
+    <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart">
+      <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>
+      <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>
+      <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>
+      <path class="stroked" fill="none" stroke="blue" d="M 8 9.5 L 8 16"/>
+      <path class="stroked" fill="none" stroke="blue" d="M 9.5 8 L 16 8"/>
+    </svg>
+  </g>
+
+  <circle
+      r="4"
+      fill="green"
+      :cx=0
+      :cy=-distance
+      @mousedown="rotateStart"
+  />
+  </g>
+
 </template>
 
 <script setup>
 
-import {computed, onMounted, reactive, ref, toRaw} from 'vue'
+import {computed, reactive, ref} from 'vue'
+import {roomTranslatorStore} from "@/stores/roomTranslator";
+const translator = roomTranslatorStore()
 
-let dragging = false
-let rotating = false;
-let slot = ref(null);
-
-const boundingRect = reactive({
-  Top: 0,
-  Right: 0,
-  Bottom: 0,
-  Left: 0,
-});
-
-// const outline = computed(() => {
-//   return (boundingRect.Left + "," + boundingRect.Top + " " +
-//       boundingRect.Right + "," + boundingRect.Top + " " +
-//       boundingRect.Right + "," + boundingRect.Bottom + " " +
-//       boundingRect.Left + "," + boundingRect.Bottom + " " +
-//       boundingRect.Left + "," + boundingRect.Top);
-// })
-
-const tl = reactive({
-  x: 25,
-  y: 55,
-})
-
-defineProps({
+const props = defineProps({
   x: Number,
   y: Number,
+
+  rotation: Number,
+
+  relevantRoomElement: Array,
 })
 
-onMounted(() => {
-  // const root = slot.value.childNodes[1];
+const distance = 20
+const handle = computed(() => {
+  const rot = (props.rotation - 90) * Math.PI / 180;
 
-  // console.log(root)
-
-  // Find parent svg
-  // let svg = root;
-  // while (svg && svg.nodeName !== 'svg') {
-  //   svg = svg.parentNode;
-  // }
-  //
-  // if (!svg) {
-  //   console.log("Draggable failed", root)
-  //   return;
-  // }
-  //
-  // const svg_bb = svg.getBoundingClientRect();
-  const opts = {
-    fill: true,
-    stroke: true,
-    markers: true,
-    clipped: true,
-  };
-
-  const el_bb = slot.value.getBBox(opts);
-  console.log(slot.value.getBBox(opts), slot.value.childNodes[1].getBBox(opts))
-  console.log(slot.value.getBoundingClientRect(), slot.value.childNodes[1].getBoundingClientRect())
-  console.log(slot.value.getCTM(), slot.value.childNodes[1].getCTM())
-  tl.x = slot.value.getBoundingClientRect().x
-  tl.y = slot.value.getBoundingClientRect().y
-  // console.log(slot.value.childNodes[1])
-
-  // boundingRect.Left = el_bb.left - svg_bb.left;
-  // boundingRect.Right = el_bb.right - svg_bb.left;
-  // boundingRect.Top = el_bb.top - svg_bb.top;
-  // boundingRect.Bottom = el_bb.bottom - svg_bb.top;
-  // console.log(toRaw(boundingRect))
-  // console.log(el_bb);
+  return {
+    x: props.x + distance * Math.cos(rot),
+    y: props.y + distance * Math.sin(rot),
+  }
 })
+
+function dragStart(e) {
+  translator.offset = [
+      props.x - e.clientX,
+      props.y - e.clientY,
+  ]
+  translator.translatingRoom = props.relevantRoomElement
+}
+
+function rotateStart(e) {
+  const rot = (props.rotation - 90) * Math.PI / 180;
+
+  translator.offset = [
+    props.x + distance * Math.cos(rot) - e.clientX,
+    props.y + distance * Math.sin(rot) - e.clientY
+  ]
+
+  translator.rotatingRoom = props.relevantRoomElement
+}
 
 </script>
 
