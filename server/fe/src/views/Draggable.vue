@@ -1,6 +1,5 @@
 <template>
-  <g :transform="'translate(' + (x) + ',' + (y) +') rotate('+rotation+')'">
-
+  <g :transform="'translate(' + (x) + ',' + (y) +') rotate('+rotation+') scale('+1/translator.scale+') '">
   <line
   :x1=0
   :y1=0
@@ -10,7 +9,7 @@
   />
 
   <g transform="translate(0, -11) rotate(45)">
-    <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart">
+    <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart" class="translate">
       <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>
       <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>
       <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>
@@ -20,6 +19,7 @@
   </g>
 
   <circle
+      class="rotate"
       r="4"
       fill="green"
       :cx=0
@@ -56,9 +56,14 @@ const handle = computed(() => {
 })
 
 function dragStart(e) {
+  // Needs to be converted to world coordinates
   translator.offset = [
-      props.x - e.clientX,
-      props.y - e.clientY,
+      props.x*translator.scale - e.clientX,
+      props.y*translator.scale - e.clientY,
+  ]
+  translator.firstClick = [
+    e.clientX,
+    e.clientY,
   ]
   translator.translatingRoom = props.relevantRoomElement
 }
@@ -77,5 +82,13 @@ function rotateStart(e) {
 </script>
 
 <style scoped>
+
+svg.translate {
+  cursor: move;
+}
+
+circle.rotate:hover {
+  cursor: crosshair;
+}
 
 </style>

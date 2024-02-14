@@ -17,7 +17,6 @@
         style="overflow: visible;">
     </rect>
 
-
     <text
         dominant-baseline="middle"
         alignment-baseline="central"
@@ -33,8 +32,8 @@
 
     <rect
           class="element"
-          v-for="(n,index) in settings.seatNum"
-          :x="seatX(index)"
+          v-for="index in settings.seatNum"
+          :x="seatX(index-1)"
           :y="settings.seatY"
           :width="settings.seatWidth"
           :height="settings.seatHeight"/>
@@ -66,6 +65,9 @@ rect.outline {
   stroke-width: 3px;
 }
 
+text {
+  pointer-events: none;
+}
 
 rect.element {
   fill: #fff;

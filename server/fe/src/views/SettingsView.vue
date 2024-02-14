@@ -1,10 +1,10 @@
 <template>
   <!--  style="display: flex;flex-direction: column;justify-content: space-between;"-->
-  <div class="col-9 h-screen flex flex-column" style="justify-content: space-between;"  ref="map">
+  <div class="col-9 h-screen flex flex-column" ref="map">
     <svg id="layoutsvg" width="100%" height="100%" @mousemove="maybeTranslateRotate"  @mouseup="resetTranslateRotate">
       <!--      <TeamTable :x="53" :y="50" :rotation="rot" team-id="100"/>-->
 
-      <g :transform="'scale('+scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
+      <g :transform="'scale('+translateRotate.scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
         <Sequence
             v-for="(el, elIndex) in room.elements"
             :separation=60
@@ -23,6 +23,16 @@
     <div class="grid m-2">
 
       <div class="col-6">
+        Scale {{ translateRotate.scale }}
+        <Slider v-model="translateRotate.scale"
+                :min=0.01
+                :max=2
+                :step=0.01
+        />
+      </div>
+      <div class="col-6">
+      </div>
+      <div class="col-6">
         Area Width {{ settings.areaWidth }}dm
         <Slider v-model="settings.areaWidth"/>
       </div>
@@ -31,12 +41,12 @@
         <Slider v-model="settings.areaHeight"/>
       </div>
       <div class="col-6">
-        Area offsetX {{ settings.areaOffsetX }}%
+        Area offset-x compared to center {{ settings.areaOffsetX }}%
         <Slider v-model="settings.areaOffsetX" :min=0 :max=100
         />
       </div>
       <div class="col-6">
-        Area offsetY {{ settings.areaOffsetY }}%
+        Area offset-y compared to center {{ settings.areaOffsetY }}%
         <Slider v-model="settings.areaOffsetY" :min=0 :max=100
         />
       </div>
@@ -60,15 +70,14 @@
       </div>
 
       <div class="col-6">
-        Seat Separation
+        Separation between the seats
         <Slider v-model="settings.seatSep"/>
       </div>
       <div class="col-6">
-        Seat Margin
-        <Slider v-model="settings.seatMargin"/>
+
       </div>
       <div class="col-6">
-        Seat Distance
+        Seat Distance to the table
         <Slider v-model="settings.seatDist" :min=0 :max="settings.areaHeight - settings.seatHeight"/>
       </div>
 
@@ -174,13 +183,11 @@ svg rect {
 
 <script setup>
 
-const scale=0.8
-
 import {teamareaStore} from "@/stores/teamarea";
 import {roomTranslatorStore} from "@/stores/roomTranslator";
 import Sequence from "@/components/Layout/Sequence.vue";
-import {onMounted, onUnmounted, reactive, ref} from "vue";
-import { useScroll } from '@vueuse/core';
+import {computed, onMounted, onUnmounted, reactive, ref} from "vue";
+import {useKeyModifier, useScroll} from '@vueuse/core';
 
 const settings = teamareaStore()
 const translateRotate = roomTranslatorStore()
@@ -193,15 +200,14 @@ const map = ref(null)
 useScroll(map, {onScroll: (e) => console.log(e)});
 
 function toggleDelete(k) {
-  confirmdelete[k] = true
-  window.setTimeout(function () {
-    delete confirmdelete[k]
-  }, 1000)
+  console.log("delete", k)
+  confirmdelete.value[k] = true
+  window.setTimeout(() => delete confirmdelete.value[k], 1000)
 }
 
 function deleteRepeats(k) {
   rooms[0].elements[0].repeats.splice(k, 1);
-  delete confirmdelete[k]
+  delete confirmdelete.value[k]
 }
 
 const sequenceTypes = ['Line', 'Circle'];
@@ -265,20 +271,27 @@ const rooms = reactive(data)
 const selectedElement = ref(rooms[0].elements[0]);
 const confirmdelete = ref([]);
 
-function maybeTranslateRotate(e) {
-  const clamping = 5
+const shift = useKeyModifier('Shift')
+const control = useKeyModifier('Control')
 
+const clamping = computed(() =>  (shift.value ? 5 : 0) * (control.value ? 3 : 1))
+
+function maybeTranslateRotate(e) {
   if (translateRotate.translatingRoom) {
 
     const room = translateRotate.translatingRoom[0]
     const el = translateRotate.translatingRoom[1]
 
     // coord is in svg space
-    const coord = offset(e, room, el)
+    const coord = [
+      (e.clientX + translateRotate.offset[0])/translateRotate.scale,
+      (e.clientY + translateRotate.offset[1])/translateRotate.scale,
+    ];
 
-    if (false) {
-      coord[0] = Math.round(coord[0]/clamping) * clamping
-      coord[1] = Math.round(coord[1]/clamping) * clamping
+    if (clamping.value>1) {
+      const cv = clamping.value
+      coord[0] = Math.round(coord[0]/cv) * cv
+      coord[1] = Math.round(coord[1]/cv) * cv
     }
 
     rooms[room].elements[el].base[0] = coord[0]
@@ -288,34 +301,23 @@ function maybeTranslateRotate(e) {
     const el = translateRotate.rotatingRoom[1]
 
     // coord is in svg space
-
-    // TODO recalculate coord to be precisely 'on the dot'.
-    const coord = offset(e, room, el)
+    const coord = [
+      e.clientX + translateRotate.offset[0],
+      e.clientY + translateRotate.offset[1],
+    ];
 
     const xDiff = coord[0] - rooms[room].elements[el].base[0]
     const yDiff = coord[1] - rooms[room].elements[el].base[1]
 
-    const upVect = Math.atan2(-5, 0)
-
+    const upVect = Math.atan2(-1, 0)
     let angle = (Math.atan2(yDiff, xDiff) - upVect)* 180 / Math.PI
-    // angle = atan2(vector2.y, vector2.x) - atan2(vector1.y, vector1.x);
 
-
-
-    // let angle = 90- Math.atan2(xDiff,yDiff) * 180 / Math.PI
-    if (false) {
-      angle = Math.round(angle/clamping)*clamping
+    if (clamping.value>1) {
+      angle = Math.round(angle/clamping.value)*clamping.value
     }
 
     rooms[room].elements[el].base[2] = angle
   }
-}
-
-function offset(e) {
-  return [
-    e.clientX + translateRotate.offset[0],
-    e.clientY + translateRotate.offset[1]
-  ];
 }
 
 function resetTranslateRotate() {

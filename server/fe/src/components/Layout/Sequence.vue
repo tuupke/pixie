@@ -20,6 +20,7 @@
         :rotation=rot(i)??0
 
         :team-id="''+(140+i)"
+        :relevant-room-element=relevantRoomElement
     />
     <Draggable
         v-if="i===1 && atRepeats===repeats.length-1 && atNum===1"

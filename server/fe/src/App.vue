@@ -24,11 +24,9 @@ export default {
 </script>
 
 <template>
-  <div class="grid">
-    <div class="col-12 grid flex flex-wrap card-container blue-container" >
-      <Toast />
-      <RouterView/>
-    </div>
+  <div class="grid col-12 flex flex-wrap card-container blue-container" >
+    <Toast />
+    <RouterView/>
   </div>
 </template>
 
