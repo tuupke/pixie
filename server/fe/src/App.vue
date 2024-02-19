@@ -1,31 +1,35 @@
-<!--<script setup>-->
-<!--import {RouterLink, RouterView} from 'vue-router'</script>-->
+<script setup>
+import {ref} from "vue";
+import {RouterView} from 'vue-router'
 
-<script>
-export default {
-  data() {
-    return {
-      items: [
-        {
-          label: 'Home',
-          icon: 'pi pi-fw pi-home',
-          to: '/',
-        },
-        {
-          label: 'Settings',
-          to: 'settings',
-          icon: 'pi pi-fw pi-cog'
-        }
-      ]
-    }
+const items = ref([
+  {
+    label: "Pixie",
+    icon: 'pi pi-fw pi-home',
+    to: '/',
+  },
+  {
+    label: 'Map Designer',
+    icon: 'pi pi-fw pi-map',
+    to: '/settings/map',
+  },
+  {
+    label: 'Area Designer',
+    icon: 'pi pi-fw pi-map',
+    to: '/settings/area',
+  },
+  {
+    label: 'Setup',
+    to: '/settings/area',
+    icon: 'pi pi-fw pi-cog'
   }
-}
-
+])
 </script>
 
 <template>
-  <div class="grid col-12 flex flex-wrap card-container blue-container" >
-    <Toast />
+  <div class="flex-column">
+    <TabMenu :model="items"/>
+    <Toast/>
     <RouterView/>
   </div>
 </template>

@@ -50,7 +50,7 @@ export const teamareaStore = defineStore({
         areaOffsetY: 0,
 
         areaWidth: 50,
-        areaHeight: 30,
+        areaHeight: 120,
 
         areaPaddingX: 0,
         areaPaddingY: 0,
@@ -65,6 +65,8 @@ export const teamareaStore = defineStore({
         seatNum: 3,
         seatHeight: 3,
         seatPadding: 0,
+
+        distanceUnit: "dm"
     }),
     actions: {
         registerTeamId(l) {

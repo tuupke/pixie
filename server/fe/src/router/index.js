@@ -18,9 +18,14 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue')
     },
     {
-      path: '/settings',
+      path: '/settings/map',
       name: 'settings',
       component: () => import('../views/SettingsView.vue')
+    },
+    {
+      path: '/settings/area',
+      name: 'area designer',
+      component: () => import('../views/AreaDesigner.vue')
     },
     {
       path: '/map',

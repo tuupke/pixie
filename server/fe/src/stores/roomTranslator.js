@@ -8,6 +8,7 @@ export const roomTranslatorStore = defineStore({
         offset: null,
         firstClick: null,
         scale: 1.0,
-        translation: [0, 0]
+        translation: [0, 0],
+        selectedRoom: null,
     }),
 })

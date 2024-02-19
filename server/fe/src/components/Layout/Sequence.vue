@@ -23,7 +23,7 @@
         :relevant-room-element=relevantRoomElement
     />
     <Draggable
-        v-if="i===1 && atRepeats===repeats.length-1 && atNum===1"
+        v-if="(i===1 && atRepeats<=repeats.length-1 && atNum===1)"
         :x=xPos(i)??0
         :y=yPos(i)??0
         :rotation=rot(i)??0
@@ -51,9 +51,8 @@ const props = defineProps({
   'y': {type: Number, required: false, default: 0},
   'rotation': {type: Number, required: false, default: 0},
   'radius': {type: Number, required: false, default: 100},
-  'extra': {type: Number, required: false, default: 0},
   'num': {type: Number, required: false, default: 1},
-  'atNum': {type: Number, required: false, default: 0},
+  'atNum': {type: Number, required: false, default: 1},
   'axis': {type: Boolean, required: false, default: true},
   'dir': {type: Boolean, required: false, default: true},
   'separation': {type: Number, required: false, default: 50},
@@ -98,12 +97,11 @@ function yPos(i) {
 }
 
 function rot(i) {
-  i--;
   if (props.type === SequenceType.Line) {
-    return props.rotation + props.extra;
-  } else {
-    return props.rotation + axisInt.value * trueSeparation.value * i + props.extra;
+    return props.rotation
   }
+
+  return props.rotation + axisInt.value * trueSeparation.value * (i-1)
 }
 
 function distVec(rotation, sep, axis, dir) {

@@ -9,7 +9,7 @@
   />
 
   <g transform="translate(0, -11) rotate(45)">
-    <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart" class="translate">
+    <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart" @click="select" class="translate">
       <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>
       <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>
       <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>
@@ -61,6 +61,7 @@ function dragStart(e) {
       props.x*translator.scale - e.clientX,
       props.y*translator.scale - e.clientY,
   ]
+
   translator.firstClick = [
     e.clientX,
     e.clientY,
@@ -77,6 +78,10 @@ function rotateStart(e) {
   ]
 
   translator.rotatingRoom = props.relevantRoomElement
+}
+
+function select() {
+  translator.selectedRoom = props.relevantRoomElement
 }
 
 </script>

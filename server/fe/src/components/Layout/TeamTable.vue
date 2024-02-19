@@ -31,12 +31,12 @@
     </text>
 
     <rect
-          class="element"
-          v-for="index in settings.seatNum"
-          :x="seatX(index-1)"
-          :y="settings.seatY"
-          :width="settings.seatWidth"
-          :height="settings.seatHeight"/>
+        class="element"
+        v-for="index in settings.seatNum"
+        :x="seatX(index-1)"
+        :y="settings.seatY"
+        :width="settings.seatWidth"
+        :height="settings.seatHeight"/>
 
     <rect
         class="outline"
@@ -59,10 +59,6 @@ rect.outline {
   fill: none;
   stroke-width: 1px;
   stroke: #476cff;
-}
-
-.team-area:hover .outline {
-  stroke-width: 3px;
 }
 
 text {
@@ -141,13 +137,13 @@ rect.element {
 
 // import {mapStores} from 'pinia'
 import {teamareaStore} from "@/stores/teamarea";
-import {onMounted, defineProps, ref} from "vue";
+import {defineProps, onMounted, ref} from "vue";
 
 const props = defineProps({
-    'x': {type: Number, required: true},
-    'y': {type: Number, required: true},
-    'rotation': {type: Number, required: false, default: 0},
-    'teamId': {type: String, required: false},
+  'x': {type: Number, required: true},
+  'y': {type: Number, required: true},
+  'rotation': {type: Number, required: false, default: 0},
+  'teamId': {type: String, required: false},
 })
 
 let group = ref(null)
