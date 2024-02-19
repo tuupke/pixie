@@ -27,8 +27,18 @@ const items = ref([
 </script>
 
 <template>
-  <div class="flex-column">
-    <TabMenu :model="items"/>
+  <div class="">
+    <TabMenu :model="items">
+      <template #item="{ item, props }">
+        <router-link v-slot="{ href, navigate }" :to="item.to" custom>
+          <a v-ripple :href="href" v-bind="props.action" @click="navigate">
+            <span v-bind="props.icon" />
+            <span v-bind="props.label">{{ item.label }}</span>
+          </a>
+        </router-link>
+      </template>
+    </TabMenu>
+<!--    <TabMenu :model="items"/>-->
     <Toast/>
     <RouterView/>
   </div>

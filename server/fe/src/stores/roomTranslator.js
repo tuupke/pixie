@@ -7,7 +7,7 @@ export const roomTranslatorStore = defineStore({
         rotatingRoom: null,
         offset: null,
         firstClick: null,
-        scale: 1.0,
+        scale: 0.5,
         translation: [0, 0],
         selectedRoom: null,
     }),

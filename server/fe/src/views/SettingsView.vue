@@ -12,7 +12,6 @@
         <g :transform="'scale('+translateRotate.scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
           <Sequence
               v-for="(el, elIndex) in room.elements"
-              :separation=60
               :axis=true
               :dir=false
               :x=el.base[0]
@@ -180,12 +179,13 @@ let data = [
             axis: true,
             equivalentSpaced: true,
             dir: false,
+            separation: 1000
           },
           {
             type: "Circle",
             num: 2,
             axis: false,
-            separation: 50,
+            radius: 500,
             dir: false,
           },
         ]
@@ -201,7 +201,6 @@ let data = [
 // Ensure all repeats have correct props
 const fallback = {
   'type': 'Line',
-  'extra': 0,
   'num': 1,
   'axis': false,
   'dir': false,

@@ -1,133 +1,139 @@
 <template>
-  <div class="flex flow-column">
-    <span class="flex-1">
-      &nbsp;
-    </span>
-    <span class="flex-1">
-    vertical settings
+  <div class="flex-1 flex-column">
 
-    </span>
   </div>
+  <div class="grid my-5 mx-1">
+    <div></div>
+    <div class="my-3 flex flex-column align-content-end" style="grid-column: span 2">
+        <span class="py-2" :style="'margin-right: '+2*scale +'px;'">
+            <Slider :tooltips=false :lazy=false v-model="settings.areaOffsetX"
+                    :min=0 :max=100 :step=sliderStep
+                    :style="'width: ' +scale*settings.areaWidth+ 'px;'"
+                    class='slider-blue'/>
+        </span>
+      <span class="py-1">
+            <Slider v-model=tableX :tooltips=false :lazy=false
+                    :min=0 :max=settings.areaWidth :step=sliderStep
+                    :style="'width: ' +scale*settings.areaWidth+ 'px;'"
+                    class="slider-blue"/>
+      </span>
+    </div>
 
-  <div class="h-full flex flex-1 flex-row my-3" style="min-height: 600px;">
-    <span class="mx-3" >
-      <Slider v-model="areaHeight" :min="-600/scale" :max="0" orientation="vertical" class='h-full' />
-    </span>
-    <span class="mx-3" >
-      <Slider v-model="areaOffsetY" :min=-100 :max=0 :style="'min-height: ' +scale*settings.areaHeight+ 'px;'" orientation="vertical" />
-    </span>
-    <span class="mx-2">
-      <Slider v-model=table
-              orientation="vertical" />
-<!--    <Slider v-model="areaOffsetY" range orientation="vertical" />-->
-<!--    <Slider v-model="areaOffsetY" range orientation="vertical" />-->
-    </span>
-    <div class="flex flex-1 mx-2">
-      <svg id="layoutsvg">
+    <div class="flex flex-row justify-content-end flex-wrap">
+      <div class="px-1">
+        <Slider :tooltips=false :lazy=false v-model="settings.areaOffsetY"
+                :min=0 :max=100 orientation="vertical" :step=sliderStep
+                :style="'height: ' +scale*settings.areaHeight+ 'px;'"
+                class="slider-blue"/>
+      </div>
+      <div class="px-2" :style="'margin-bottom: '+2*scale +'px;'">
+        <Slider v-model=tableY :tooltips=false :lazy=false
+                orientation="vertical" :step=sliderStep
+                :min=0 :max=settings.areaHeight
+                :style="'height: ' +scale*settings.areaHeight+ 'px;'"
+                class="slider-blue"/>
+      </div>
+    </div>
+    <div ref="svgDiv">
+      <svg width="100%" height="100%" class="" style="margin-bottom: 5rem;">
         <g :transform="'scale('+scale+') translate('+(-settings.areaX)+','+(-settings.areaY)+')'">
-          <TeamTable :x="1" :rotation="0" :y="1" team-id="100"/>
-          <circle v-if="middleShown" :cx=1 :cy=1 r="3" fill="orange"/>
-
-          <!--          <g v-if="middleShown" transform="translate(0, -11) rotate(45)">-->
-<!--            <svg xmlns="http://www.w3.org/2000/svg" @mousedown="dragStart" @click="select" class="translate">-->
-<!--              <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>-->
-<!--              <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>-->
-<!--              <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>-->
-<!--              <path class="stroked" fill="none" stroke="blue" d="M 8 9.5 L 8 16"/>-->
-<!--              <path class="stroked" fill="none" stroke="blue" d="M 9.5 8 L 16 8"/>-->
-<!--            </svg>-->
-<!--          </g>-->
+          <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100"/>
+          <circle :cx=0.5 :cy=0.5 r="3" fill="orange"/>
+        <g transform="translate(0, -11) rotate(45)">
+          <svg xmlns="http://www.w3.org/2000/svg" class="translate">
+            <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>
+            <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>
+            <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>
+            <path class="stroked" fill="none" stroke="blue" d="M 8 9.5 L 8 16"/>
+            <path class="stroked" fill="none" stroke="blue" d="M 9.5 8 L 16 8"/>
+          </svg>
         </g>
+        </g>
+
       </svg>
     </div>
-<!--    <div class="flex-1 p-2 m-2">-->
-<!--      <Accordion v-model:activeIndex="activeTab">-->
-<!--        <AccordionTab header="Area sizing" class="flex flex-0">-->
-<!--          <div class="p-2">-->
-<!--            Area Width {{ settings.areaWidth }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.areaWidth"/>-->
-<!--          </div>-->
-<!--          <div class="p-2">-->
-<!--            Area Height {{ settings.areaHeight }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.areaHeight"/>-->
-<!--          </div>-->
 
-<!--          <div class="p-2">-->
-<!--            Area paddingX {{ settings.areaPaddingX }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.areaPaddingX"/>-->
-<!--          </div>-->
-<!--          <div class="p-2">-->
-<!--            Area paddingY {{ settings.areaPaddingY }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.areaPaddingY"/>-->
-<!--          </div>-->
-<!--        </AccordionTab>-->
-<!--        <AccordionTab>-->
+    <div class="mx-4 flex flex-column flex-grow-1">
+      <Panel header="Area Settings">
+        <div class="flex-row m-2">
+          <label>Area height</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" :min="settings.tableHeight+settings.areaPaddingY+settings.seatHeight+settings.seatDist"
+                         v-model="settings.areaHeight"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Area width</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" :min="settings.tableWidth+settings.areaPaddingX" v-model="settings.areaWidth"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Area middle relative to area</label>
+          <div class="p-inputgroup">
+            <InputNumber prefix="x: " step="0.1" suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetX"/>
+            <InputNumber prefix="y: " step="0.1" suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetY"/>
+          </div>
+        </div>
+      </Panel>
+      <Panel header="Table Settings" class="my-3">
+        <div class="flex-row m-2">
+          <label>Table width</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" v-model="settings.tableWidth"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Table height</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" v-model="settings.tableHeight"/>
+          </div>
+        </div>
+      </Panel>
+      <Panel header="Seat Settings" class="my-3">
+        <div class="flex-row m-2">
+          <label>Number of seats</label>
+          <div class="p-inputgroup">
+            <InputNumber :min=0 :suffix="' seat'+(settings.seatNum===1 ? '' : 's')" v-model="settings.seatNum"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Seat height</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" v-model="settings.seatHeight"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Distance between seats</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" :min=0 v-model="settings.seatSep"/>
+          </div>
+        </div>
+        <div class="flex-row m-2">
+          <label>Distance to table</label>
+          <div class="p-inputgroup">
+            <InputNumber :suffix="' '+settings.distanceUnit" v-model="settings.seatDist"/>
+          </div>
+        </div>
+      </Panel>
+    </div>
 
-<!--          <template #header>-->
-<!--            <span class="flex align-items-center gap-2 w-full">-->
-<!--                <span class="font-bold white-space-nowrap">Area positioning</span>-->
-<!--                <ToggleButton class="ml-auto" size="small" v-model="showMid" onIcon="pi pi-eye" onLabel="middle visible"-->
-<!--                              offIcon="pi pi-eye-slash" offLabel="middle hidden" @click.stop/>-->
-<!--            </span>-->
-<!--          </template>-->
-
-<!--          <div class="p-2">-->
-<!--            Area offset-x compared to center {{ settings.areaOffsetX }}%-->
-<!--            <Slider v-model="settings.areaOffsetX" :min=0 :max=100-->
-<!--            />-->
-<!--          </div>-->
-<!--          <div class="p-2">-->
-<!--            Area offset-y compared to center {{ settings.areaOffsetY }}%-->
-<!--            <Slider v-model="settings.areaOffsetY" :min=0 :max=100-->
-<!--            />-->
-<!--          </div>-->
-
-<!--        </AccordionTab>-->
-<!--        <AccordionTab header="Table sizing">-->
-<!--          <div class="p-2">-->
-<!--            table offset x {{ settings.tableOffsetX }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.tableOffsetX" :min="-settings.areaPaddingX" :max="settings.areaPaddingX"/>-->
-<!--          </div>-->
-<!--          <div class="p-2">-->
-<!--            table offset y {{ settings.tableOffsetY }} {{ settings.distanceUnit }}-->
-<!--            <Slider v-model="settings.tableOffsetY" :min="-settings.areaPaddingY" :max="settings.areaPaddingY"/>-->
-<!--          </div>-->
-<!--        </AccordionTab>-->
-<!--        <AccordionTab></AccordionTab>-->
-<!--      </Accordion>-->
-
-
-<!--      <div class="p-2">-->
-<!--        Separation between the seats-->
-<!--        <Slider v-model="settings.seatSep"/>-->
-<!--      </div>-->
-<!--      <div class="p-2">-->
-
-<!--      </div>-->
-<!--      <div class="p-2">-->
-<!--        Seat Distance to the table-->
-<!--        <Slider v-model="settings.seatDist" :min=0 :max="settings.areaHeight - settings.seatHeight"/>-->
-<!--      </div>-->
-
-<!--      <div class="p-2">-->
-<!--        Num Seats-->
-<!--        <Slider v-model="settings.seatNum"/>-->
-<!--      </div>-->
-<!--      <div class="p-2">-->
-<!--        Seat height-->
-<!--        <Slider v-model="settings.seatHeight"/>-->
-<!--      </div>-->
-<!--      <div class="p-2">-->
-<!--        Seat padding-->
-<!--        <Slider v-model="settings.seatPadding"/>-->
-<!--      </div>-->
-<!--    </div>-->
   </div>
 </template>
 
 <style scoped>
+.grid {
+  display: inline-grid;
+  width: 100%;
+  grid-template-columns: max-content auto min-content;
+}
+
 svg rect {
   color: lightgray;
+}
+
+.slider-blue {
+  --slider-connect-bg: none;
 }
 
 </style>
@@ -136,27 +142,66 @@ svg rect {
 
 import {teamareaStore} from "@/stores/teamarea";
 import TeamTable from "../components/Layout/TeamTable.vue";
-import {computed, ref, toRaw, markRaw} from "vue";
-import {Slider as fSlider} from '@vueform/slider'
+import {computed, onMounted, ref} from "vue";
+import {useKeyModifier} from '@vueuse/core';
 
 const settings = teamareaStore()
+const control = useKeyModifier('Control')
 
 const middleShown = computed(() => showMid.value || activeTab.value === 1 || true);
 const showMid = ref(false);
 const activeTab = ref(false);
-const scale = ref(4)
+const scale = ref(15)
 
-const areaHeight = computed({get() {return -settings.areaHeight }, set(n) {settings.areaHeight = -n}})
-const areaOffsetY = computed({get() {return -settings.areaOffsetY }, set(n) {settings.areaOffsetY = -n}})
+const sliderStep = computed(() => control.value ? 1 : -1)
 
-const table = computed({
+const tableY = computed({
   get() {
-    return [settings.areaPaddingY, 80]
+    return [
+      settings.areaPaddingY,
+      settings.areaPaddingY + settings.tableHeight,
+      settings.areaPaddingY + settings.tableHeight + settings.seatDist,
+      settings.areaPaddingY + settings.tableHeight + settings.seatDist + settings.seatHeight,
+    ]
   },
   set(n) {
-    console.log(n)
     settings.areaPaddingY = n[0]
+    settings.tableHeight = n[1] - n[0]
+    settings.seatDist = n[2] - n[1]
+    settings.seatHeight = n[3] - n[2]
   }
 })
+
+const tableX = computed({
+  get() {
+    return [
+      settings.areaPaddingX,
+      settings.areaPaddingX + settings.tableWidth,
+    ]
+  },
+  set(n) {
+    settings.areaPaddingX = n[0]
+    settings.tableWidth = n[1] - n[0]
+  }
+})
+
+const svgDiv = ref()
+
+onMounted(() => {
+  const ro = new ResizeObserver((e) => {
+
+    // Consider changing this to retrieving the size
+    e = e[0].contentRect
+    const newScale = svgDiv.value.offsetWidth / (settings.areaWidth + 4)
+    if (Math.abs(scale.value - newScale) < 0.001) {
+      return
+    }
+    scale.value = newScale
+    console.log("Setting scale to: "+newScale)
+  })
+  ro.observe(svgDiv.value)
+})
+
+
 
 </script>

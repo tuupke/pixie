@@ -94,7 +94,8 @@ app.component('Column', Column)
 import Row from 'primevue/row'
 app.component('Row', Row)
 
-import Slider from 'primevue/slider'
+import '@vueform/slider/themes/default.css'
+import Slider from '@vueform/slider'
 app.component('Slider', Slider)
 
 import Checkbox from 'primevue/checkbox'

@@ -9,19 +9,11 @@ export const teamareaStore = defineStore({
         areaY() {
             return -this.areaHeight*this.areaOffsetY/100;
         },
-
         tableX() {
-            return this.areaX + this.areaPaddingX - this.tableOffsetX
+            return this.areaX + this.areaPaddingX
         },
         tableY() {
-            return this.areaY + this.areaPaddingY - this.tableOffsetY
-        },
-
-        tableWidth() {
-            return this.areaWidth - 2 * this.areaPaddingX
-        },
-        tableHeight() {
-            return this.areaHeight - 2 * this.areaPaddingY - (this.seatNum > 0 ? 1 : 0) * (this.seatHeight + this.seatDist)
+            return this.areaY + this.areaPaddingY // - this.tableOffsetY
         },
 
         seatY() {
@@ -49,24 +41,26 @@ export const teamareaStore = defineStore({
         areaOffsetX: 50,
         areaOffsetY: 0,
 
-        areaWidth: 50,
-        areaHeight: 120,
+        areaWidth: 500,
+        areaHeight: 300,
 
         areaPaddingX: 0,
         areaPaddingY: 0,
 
+        tableHeight: 240,
+        tableWidth: 500,
         tableOffsetX: 0,
         tableOffsetY: 0,
 
         maxTeamLength: 0,
 
-        seatSep: 3,
-        seatDist: 3,
+        seatSep: 30,
+        seatDist: 30,
         seatNum: 3,
-        seatHeight: 3,
+        seatHeight: 30,
         seatPadding: 0,
 
-        distanceUnit: "dm"
+        distanceUnit: "cm"
     }),
     actions: {
         registerTeamId(l) {

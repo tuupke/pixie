@@ -163,5 +163,4 @@ onMounted(() => {
   settings.registerTeamId(props.teamId)
 })
 
-
 </script>
