@@ -25,6 +25,9 @@ app.component('Button', Button)
 import InputSwitch from 'primevue/inputswitch'
 app.component('InputSwitch', InputSwitch)
 
+import InputGroup from 'primevue/inputgroup'
+app.component('InputGroup', InputGroup)
+
 import SelectButton from 'primevue/selectbutton'
 app.component('SelectButton', SelectButton)
 
@@ -72,6 +75,9 @@ app.component('Panel', Panel)
 
 import Splitter from 'primevue/splitter'
 app.component('Splitter', Splitter)
+
+import FloatLabel from 'primevue/floatlabel'
+app.component('FloatLabel', FloatLabel)
 
 import SplitterPanel from 'primevue/splitterpanel'
 app.component('SplitterPanel', SplitterPanel)

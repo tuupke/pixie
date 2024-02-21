@@ -20,8 +20,8 @@
         <div class="flex-row m-2">
           <label>Area middle relative to area</label>
           <div class="p-inputgroup">
-            <InputNumber prefix="x: " step="0.1" suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetX"/>
-            <InputNumber prefix="y: " step="0.1" suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetY"/>
+            <InputNumber prefix="x: " :step=0.1 suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetX"/>
+            <InputNumber prefix="y: " :step=0.1 suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetY"/>
           </div>
         </div>
       </Panel>
@@ -194,8 +194,8 @@ onMounted(() => {
     scale.value = newScale
     console.log("Setting scale to: " + newScale)
   })
+
   ro.observe(svgDiv.value.parentNode.parentNode)
 })
-
 
 </script>

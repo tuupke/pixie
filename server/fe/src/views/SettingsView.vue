@@ -1,36 +1,23 @@
 <template>
   <Toolbar class="flex-initial flex m-2">
     <template #start>
-
       <Button label="New Room" icon="pi pi-plus" class="mr-2" severity="success" />
       <Button label="New Room element" icon="pi pi-plus" class="mr-2" severity="success" />
     </template>
   </Toolbar>
-  <Splitter class="flex-initial flex-1 m-2 px-5 py-3">
-    <SplitterPanel>
-      <svg id="layoutsvg" width="100%" height="100%" @mousemove="maybeTranslateRotate" @mouseup="resetTranslateRotate">
-        <g :transform="'scale('+translateRotate.scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
-          <Sequence
-              v-for="(el, elIndex) in room.elements"
-              :axis=true
-              :dir=false
-              :x=el.base[0]
-              :y=el.base[1]
-              :rotation=el.base[2]??0
-              :num=1
-              :atRepeats=-1
-              :repeats=el.repeats
-              :relevant-room-element=[roomIndex,elIndex]
-          />
-        </g>
-      </svg>
-    </SplitterPanel>
-    <SplitterPanel class="flex align-items-center justify-content-center">
+  <div class="grid h-screen">
+    <div class="col-3">
       <Accordion v-if="translateRotate.selectedRoom" multiple :activeIndex='[0]'>
         <AccordionTab>
           <template #header>
             <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">Settings</span>
+                              <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded
+                                      aria-label="confirm deletion"
+                                      v-if="confirmdelete[Math.pow(2, translateRotate.selectedRoom[0]) + Math.pow(3, translateRotate.selectedRoom[1]) + Math.pow(5, k)]"
+                                      v-on:click.stop="deleteRepeats(k)"/>
+                <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded aria-label="Delete"
+                        outlined v-else v-on:click.stop="toggleDelete(k)"/>
                 <Button class="ml-auto" size="small" icon="pi pi-plus" severity="success" rounded outlined
                         aria-label="add repeats" @click="addRepeats()"/>
             </span>
@@ -56,10 +43,16 @@
                 <SelectButton v-model="repeat.type" :options="sequenceTypes" :inputId="'type'+k"/>
               </div>
 
-              <div class="flex-grow-1 flex-shrink-1 flex flex-column m-2 w-full" v-if="repeat.type === 'Circle'">
-                <label :for="'radius'+k">Radius</label>
-                <InputNumber :id="'radius'+k" v-model="repeat.radius" showButtons/>
-              </div>
+<!--              <div class="flex-grow-1 flex-shrink-1 flex flex-column m-2" v-if="repeat.type === 'Circle'">-->
+<!--                <label :for="'radius'+k">Radius</label>-->
+<!--                <InputNumber :id="'radius'+k" v-model="repeat.radius" showButtons/>-->
+<!--              </div>-->
+            </div>
+
+
+            <div class="flex-row m-2" v-if="repeat.type === 'Circle'">
+              <label :for="'repeat'+k">Radius</label>
+              <InputNumber :id="'radius'+k" v-model="repeat.radius" showButtons class="p-inputgroup" />
             </div>
 
             <div class="flex-row field-checkbox m-2">
@@ -105,10 +98,26 @@
       <div v-else>
         Select an element first
       </div>
-    </SplitterPanel>
-  </Splitter>
-
-
+    </div>
+    <div class="col-9">
+      <svg id="layoutsvg" width="100%" height="100%" @mousemove="maybeTranslateRotate" @mouseup="resetTranslateRotate">
+        <g :transform="'scale('+translateRotate.scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
+          <Sequence
+              v-for="(el, elIndex) in room.elements"
+              :axis=true
+              :dir=false
+              :x=el.base[0]
+              :y=el.base[1]
+              :rotation=el.base[2]??0
+              :num=1
+              :atRepeats=-1
+              :repeats=el.repeats
+              :relevant-room-element=[roomIndex,elIndex]
+          />
+        </g>
+      </svg>
+    </div>
+  </div>
 </template>
 
 <style scoped>
