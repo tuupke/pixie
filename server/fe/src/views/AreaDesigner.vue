@@ -24,6 +24,13 @@
             <InputNumber prefix="y: " :step=0.1 suffix=" %" :min=0 :max="100" v-model="settings.areaOffsetY"/>
           </div>
         </div>
+        <div class="flex-row m-2">
+          <label>Border stroke width</label>
+          <div class="p-inputgroup">
+            <InputNumber suffix=" px" :min="1"
+                         v-model="settings.strokeWidth"/>
+          </div>
+        </div>
       </Panel>
       <Panel header="Table Settings" class="m-3">
         <div class="flex-row m-2">
@@ -100,7 +107,7 @@
           </div>
         </div>
         <div ref="svgDiv">
-          <svg width="100%" height="100%" class="" style="margin-bottom: 5rem;">
+          <svg width="100%" height="100%">
             <g :transform="'scale('+scale+') translate('+(-settings.areaX)+','+(-settings.areaY)+')'">
               <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100"/>
               <circle :cx=0.5 :cy=0.5 r="3" fill="orange"/>
@@ -136,8 +143,9 @@
 <script setup>
 
 import {teamareaStore} from "@/stores/teamarea";
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import {useKeyModifier} from '@vueuse/core';
+import {storeToRefs} from "pinia";
 
 const settings = teamareaStore()
 const control = useKeyModifier('Control')
@@ -182,20 +190,26 @@ const tableX = computed({
 const svgDiv = ref()
 
 onMounted(() => {
-  const ro = new ResizeObserver(() => {
+  (new ResizeObserver(rescale)).observe(svgDiv.value.parentNode.parentNode)
+})
+
+const {areaWidth, strokeWidth} = storeToRefs(settings)
+// settings.$subscribe((mutation))
+watch(areaWidth, rescale)
+watch(strokeWidth, rescale)
+
+async function rescale() {
   const svg = svgDiv.value
   const availableWidth = svg.parentNode.parentNode.offsetWidth -
       svg.previousSibling.offsetWidth
 
-    const newScale = availableWidth / (settings.areaWidth+20)
-    if (Math.abs(scale.value - newScale) < 0.001) {
-      return
-    }
-    scale.value = newScale
-    console.log("Setting scale to: " + newScale)
-  })
+  const newScale = availableWidth / (settings.areaWidth+20)
+  if (Math.abs(scale.value - newScale) < 0.001) {
+    return
+  }
 
-  ro.observe(svgDiv.value.parentNode.parentNode)
-})
+  scale.value = newScale
+  console.log("Setting scale to: " + newScale)
+}
 
 </script>

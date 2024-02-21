@@ -35,9 +35,11 @@ export const teamareaStore = defineStore({
                 (this.seatNum + 1) * this.seatPadding -
                 (this.seatNum - 1) * this.seatSep
             ) / this.seatNum
-        },
+        }
     },
     state: () => ({
+        strokeWidth: 3,
+
         areaOffsetX: 50,
         areaOffsetY: 0,
 

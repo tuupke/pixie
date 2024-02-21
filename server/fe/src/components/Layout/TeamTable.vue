@@ -1,7 +1,7 @@
 <template>
   <g :transform="posCalc()" ref="slot" class="team-area">
     <rect
-        class="background"
+        class="element background"
         :x="settings.areaX"
         :y="settings.areaY"
         :width="settings.areaWidth"
@@ -18,8 +18,7 @@
     </rect>
 
     <text
-        dominant-baseline="middle"
-        alignment-baseline="central"
+        dominant-baseline="central"
         font-family="sans-serif"
         :x="settings.tableX + settings.tableWidth/2"
         :y="settings.tableY + settings.tableHeight/2"
@@ -39,7 +38,7 @@
         :height="settings.seatHeight"/>
 
     <rect
-        class="outline"
+        class="element outline"
         :x="settings.areaX"
         :y="settings.areaY"
 
@@ -47,32 +46,34 @@
         :height="settings.areaHeight"/>
     />
   </g>
+  <Hatching
+      :dist="settings.areaWidth/20"
+      :stroke="settings.areaWidth/15"
+
+  />
+
 </template>
 
 <style>
-
-.background {
-  fill: none;
-}
-
-rect.outline {
-  fill: none;
-  stroke-width: 1px;
-  stroke: #476cff;
-}
 
 text {
   pointer-events: none;
 }
 
-rect.element {
-  fill: #fff;
+.element {
+  fill: none;
+  stroke-width: v-bind(settings.strokeWidth);
   stroke: #444;
 }
 
-.area .element {
+.background {
+  fill: url(#diagonalHatch);
+}
+
+
+.element rect {
   stroke: #444;
-  stroke-width: 1;
+  stroke-width: v-bind(settings.strokeWidth);
   stroke-dasharray: none;
   stroke-linecap: butt;
   stroke-dashoffset: 0;
@@ -84,18 +85,9 @@ rect.element {
   fill: #fff;
 }
 
-.area:hover, .area .selected {
-  stroke-width: 2;
-}
-
-.noteam {
-
-}
-
-
 .teamtable rect {
   stroke: #444;
-  stroke-width: 1;
+  stroke-width: v-bind(settings.strokeWidth);
   stroke-dasharray: none;
   stroke-linecap: butt;
   stroke-dashoffset: 0;
@@ -128,7 +120,13 @@ rect.element {
 }
 
 .teamtable:hover rect {
-  stroke-width: 3px;
+  stroke-width: v-bind(settings.strokeWidth);
+}
+
+rect.outline {
+  fill: none;
+  stroke-width: v-bind(settings.strokeWidth);
+  stroke: #476cff;
 }
 
 </style>
@@ -138,6 +136,8 @@ rect.element {
 // import {mapStores} from 'pinia'
 import {teamareaStore} from "@/stores/teamarea";
 import {defineProps, onMounted, ref} from "vue";
+import {storeToRefs} from "pinia";
+import Hatching from "./Hatching.vue";
 
 const props = defineProps({
   'x': {type: Number, required: true},
@@ -158,6 +158,7 @@ function seatX(i) {
 }
 
 const settings = teamareaStore()
+const {strokeWidth} = storeToRefs(settings)
 
 onMounted(() => {
   settings.registerTeamId(props.teamId)
