@@ -27,7 +27,7 @@ const items = ref([
 </script>
 
 <template>
-  <div class="">
+  <div class="app-wrapper">
     <TabMenu :model="items">
       <template #item="{ item, props }">
         <router-link v-slot="{ href, navigate }" :to="item.to" custom>
@@ -45,5 +45,9 @@ const items = ref([
 </template>
 
 <style scoped>
-
+.app-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
 </style>

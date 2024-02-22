@@ -5,8 +5,8 @@
       <Button label="New Room element" icon="pi pi-plus" class="mr-2" severity="success" />
     </template>
   </Toolbar>
-  <div class="grid h-screen">
-    <div class="col-3">
+  <div class="settings-view-wrapper">
+    <div class="col-3 left-nav">
       <Accordion v-if="translateRotate.selectedRoom" multiple :activeIndex='[0]'>
         <AccordionTab>
           <template #header>
@@ -100,7 +100,7 @@
       </div>
     </div>
     <div class="col-9">
-      <svg id="layoutsvg" width="100%" height="100%" @mousemove="maybeTranslateRotate" @mouseup="resetTranslateRotate">
+      <svg id="layoutsvg" @wheel="scroll" width="100%" height="100%" @mousemove="maybeTranslateRotate" @mouseup="resetTranslateRotate">
         <g :transform="'scale('+translateRotate.scale+')'" class="room" id="room" v-for="(room, roomIndex) in rooms">
           <Sequence
               v-for="(el, elIndex) in room.elements"
@@ -128,6 +128,14 @@ svg rect {
 .dragable {
   color: black;
 }
+.settings-view-wrapper {
+    display: flex;
+    flex: 1;
+}
+.left-nav {
+    max-height: calc(100vh - 9rem);
+    overflow-y: auto;
+}
 </style>
 
 <script setup>
@@ -142,7 +150,10 @@ const settings = teamareaStore()
 const translateRotate = roomTranslatorStore()
 
 function scroll(state) {
-  console.log(state) // {x, y, isScrolling, arrivedState, directions}
+    if ((translateRotate.scale >= 1 && state.deltaY > 0) || (translateRotate.scale <= 0.3 && state.deltaY < 0)) {
+        return;
+    }
+    translateRotate.scale += (state.deltaY / 10000);
 }
 
 const map = ref(null)
