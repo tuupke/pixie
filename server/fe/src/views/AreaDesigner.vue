@@ -142,7 +142,7 @@
 
 <script setup>
 
-import {teamareaStore} from "@/stores/teamarea";
+import {teamareaStore} from "../stores/teamarea";
 import {computed, onMounted, ref, watch} from "vue";
 import {useKeyModifier} from '@vueuse/core';
 import {storeToRefs} from "pinia";

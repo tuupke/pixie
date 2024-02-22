@@ -108,13 +108,10 @@ import Checkbox from 'primevue/checkbox'
 app.component('Checkbox', Checkbox)
 
 // Local components
-import Team from '@/components/Team.vue'
+import Team from './components/Team.vue'
 app.component('Team', Team)
 
-import Room from '@/components/Layout/Room.vue'
-app.component('Room', Room)
-
-import TeamTable from '@/components/Layout/TeamTable.vue'
+import TeamTable from './components/Layout/TeamTable.vue'
 app.component('TeamTable', TeamTable)
 
 app.mount('#app')

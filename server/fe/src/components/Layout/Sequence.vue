@@ -33,9 +33,9 @@
 
 </template>
 
-<script setup>
+<script setup lang="ts">
 
-import TeamTable from "@/components/Layout/TeamTable.vue";
+import TeamTable from "./TeamTable.vue";
 import Draggable from "../../views/Draggable.vue";
 import {computed} from "vue";
 
@@ -45,24 +45,37 @@ const SequenceType = {
   Circle: "Circle",
 };
 
-const props = defineProps({
-  'type': {type: String, required: false, default: "Line"},
-  'x': {type: Number, required: false, default: 0},
-  'y': {type: Number, required: false, default: 0},
-  'rotation': {type: Number, required: false, default: 0},
-  'radius': {type: Number, required: false, default: 100},
-  'num': {type: Number, required: false, default: 1},
-  'atNum': {type: Number, required: false, default: 1},
-  'axis': {type: Boolean, required: false, default: true},
-  'dir': {type: Boolean, required: false, default: true},
-  'separation': {type: Number, required: false, default: 50},
-  'repeats': {type: Array, required: true},
-  'atRepeats': {type: Number, required: true, default: 0},
-  'equivalentSpaced': {type: Boolean, required: false, default: true},
-  'relevantRoomElement': {type: Array, required: true},
-})
+const props = withDefaults(defineProps<{
+  type: string
+  x: number
+  y: number
+  rotation: number
+  radius: number
+  num: number
+  atNum: number
+  axis: boolean
+  dir: boolean
+  separation: number
+  repeats: any[]
+  atRepeats: number
+  equivalentSpaced: boolean
+  relevantRoomElement: any[]
+}>(), {
+  type: "Line",
+  x: 0,
+  y: 0,
+  rotation: 0,
+  radius: 100,
+  num: 1,
+  atNum: 1,
+  axis: true,
+  dir: true,
+  separation: 50,
+  atRepeats: 0,
+  equivalentSpaced: true
+});
 
-function xPos(i) {
+function xPos(i: number): number {
   i--;
   if (props.type === SequenceType.Line) {
     return Math.round(props.x + dirVec.value.x * i);
@@ -79,7 +92,7 @@ function xPos(i) {
   }
 }
 
-function yPos(i) {
+function yPos(i: number): number {
   i--;
   if (props.type === SequenceType.Line) {
     return Math.round(props.y + dirVec.value.y * i);
@@ -96,7 +109,7 @@ function yPos(i) {
   }
 }
 
-function rot(i) {
+function rot(i: number): number {
   if (props.type === SequenceType.Line) {
     return props.rotation
   }
@@ -104,7 +117,11 @@ function rot(i) {
   return props.rotation + axisInt.value * trueSeparation.value * (i-1)
 }
 
-function distVec(rotation, sep, axis, dir) {
+function distVec(rotation: number, sep: number, axis: boolean, dir: boolean): {
+  x: number
+  y: number
+  rot: number
+} {
   let offset = 90;
   if (axis) {
     offset = 0;

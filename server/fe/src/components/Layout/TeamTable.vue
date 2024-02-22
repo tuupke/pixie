@@ -134,7 +134,7 @@ rect.outline {
 <script setup>
 
 // import {mapStores} from 'pinia'
-import {teamareaStore} from "@/stores/teamarea";
+import {teamareaStore} from "../../stores/teamarea";
 import {defineProps, onMounted, ref} from "vue";
 import {storeToRefs} from "pinia";
 import Hatching from "./Hatching.vue";
@@ -144,6 +144,7 @@ const props = defineProps({
   'y': {type: Number, required: true},
   'rotation': {type: Number, required: false, default: 0},
   'teamId': {type: String, required: false},
+  'relevant-room-element': {type: Array, required: true},
 })
 
 let group = ref(null)

@@ -1,19 +1,24 @@
 <template>
-  <pattern :style="{fill: fill}" id="diagonalHatch" patternUnits="userSpaceOnUse" :width=4*dist :height=4*dist>
+  <pattern :style="{fill: colorB}" id="diagonalHatch" patternUnits="userSpaceOnUse" :width=4*dist :height=4*dist>
     <rect :width=4*dist :height=4*dist />
-    <path :d=path :style="{stroke: color, strokeWidth: stroke}" />
+    <path :d=path :style="{stroke: colorA, strokeWidth: stroke}" />
   </pattern>
 </template>
 
-<script setup>
+<script setup lang="ts">
 
-import {computed, defineProps} from "vue";
+import {computed, defineProps, withDefaults} from "vue";
 
-const props = defineProps({
-  'color': {type: String, default: '#b7cbff'},
-  'fill': {type: String, default: 'orange'},
-  'stroke': {type: Number, default: 1},
-  'dist': {type: Number, default: 1},
+const props = withDefaults(defineProps<{
+  colorA: string
+  colorB: string
+  stroke: number
+  dist: number
+}>(), {
+  colorA: '#b7cbff',
+  colorB: 'orange',
+  stroke: 1,
+  dist: 1,
 })
 
 const path = computed(() => {

@@ -1,8 +1,13 @@
-<script setup>
-import {ref} from "vue";
+<script setup lang="ts">
+
+import {reactive} from "vue";
 import {RouterView} from 'vue-router'
 
-const items = ref([
+const items = reactive<{
+  label: string
+  icon: string
+  to: string
+}[]>([
   {
     label: "Pixie",
     icon: 'pi pi-fw pi-home',

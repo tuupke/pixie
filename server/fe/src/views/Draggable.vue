@@ -33,7 +33,7 @@
 <script setup>
 
 import {computed, reactive, ref} from 'vue'
-import {roomTranslatorStore} from "@/stores/roomTranslator";
+import {roomTranslatorStore} from "../stores/roomTranslator";
 const translator = roomTranslatorStore()
 
 const props = defineProps({

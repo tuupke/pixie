@@ -218,8 +218,8 @@ import {mapStores} from 'pinia'
 import { downloadZip } from "https://cdn.jsdelivr.net/npm/client-zip/index.js"
 
 // declare store variable
-import {settingsStore} from "@/stores/settings";
-import {teamsStore} from "@/stores/teams";
+import {settingsStore} from "../stores/settings";
+import {teamsStore} from "../stores/teams";
 import QrScanner from "qr-scanner";
 
 import * as flatbuffers from 'flatbuffers';

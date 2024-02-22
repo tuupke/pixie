@@ -12,12 +12,6 @@
           <template #header>
             <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">Settings</span>
-                              <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded
-                                      aria-label="confirm deletion"
-                                      v-if="confirmdelete[Math.pow(2, translateRotate.selectedRoom[0]) + Math.pow(3, translateRotate.selectedRoom[1]) + Math.pow(5, k)]"
-                                      v-on:click.stop="deleteRepeats(k)"/>
-                <Button class="ml-auto" size="small" icon="pi pi-times" severity="danger" rounded aria-label="Delete"
-                        outlined v-else v-on:click.stop="toggleDelete(k)"/>
                 <Button class="ml-auto" size="small" icon="pi pi-plus" severity="success" rounded outlined
                         aria-label="add repeats" @click="addRepeats()"/>
             </span>
@@ -125,9 +119,6 @@ svg rect {
   color: lightgray;
 }
 
-.dragable {
-  color: black;
-}
 .settings-view-wrapper {
     display: flex;
     flex: 1;
@@ -140,9 +131,9 @@ svg rect {
 
 <script setup>
 
-import {teamareaStore} from "@/stores/teamarea";
-import {roomTranslatorStore} from "@/stores/roomTranslator";
-import Sequence from "@/components/Layout/Sequence.vue";
+import {teamareaStore} from "../stores/teamarea";
+import {roomTranslatorStore} from "../stores/roomTranslator";
+import Sequence from "../components/Layout/Sequence.vue";
 import {computed, reactive, ref} from "vue";
 import {useKeyModifier, useScroll} from '@vueuse/core';
 
@@ -167,7 +158,6 @@ function toggleDelete(k) {
 
 function addRepeats() {
   rooms[translateRotate.selectedRoom[0]].elements[translateRotate.selectedRoom[1]].repeats.push({...fallback});
-
 }
 
 function deleteRepeats(k) {
