@@ -12,7 +12,7 @@ export const teamareaStore = defineStore('teamarea', {
             return this.areaX + this.areaPaddingX
         },
         tableY(): number {
-            return this.areaY + this.areaPaddingY // - this.tableOffsetY
+            return this.areaY + this.areaPaddingY
         },
 
         seatY(): number {
@@ -25,7 +25,7 @@ export const teamareaStore = defineStore('teamarea', {
                 xWidth = 2000
             }
 
-            return Math.min(this.tableHeight - 3, xWidth)
+            return Math.min(this.tableHeight - 70+this.strokeWidth, xWidth)
         },
 
         seatWidth(): number {
@@ -66,8 +66,8 @@ export const teamareaStore = defineStore('teamarea', {
         }
     },
     actions: {
-        registerTeamId(l: number): void {
-            this.maxTeamLength = Math.max(Math.floor(Math.log10(l)), this.maxTeamLength);
+        registerTeamId(l: string): void {
+            this.maxTeamLength = Math.max(Math.floor(l.length), this.maxTeamLength);
         }
     },
 })

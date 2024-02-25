@@ -1,5 +1,5 @@
 <template>
-  <pattern :style="{fill: colorB}" id="diagonalHatch" patternUnits="userSpaceOnUse" :width=4*dist :height=4*dist>
+  <pattern :style="{fill: colorB}" :id="id" patternUnits="userSpaceOnUse" :width=4*dist :height=4*dist>
     <rect :width=4*dist :height=4*dist />
     <path :d=path :style="{stroke: colorA, strokeWidth: stroke}" />
   </pattern>
@@ -13,6 +13,7 @@ const props = withDefaults(defineProps<{
   colorA: string
   colorB: string
   stroke: number
+  id: string
   dist: number
 }>(), {
   colorA: '#b7cbff',

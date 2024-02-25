@@ -1,33 +1,40 @@
 <template>
   <Sequence
-      v-if="repeats.length-1 > atRepeats"
+      v-if="el.repeats.length -1 > atRepeats"
+
+      v-bind="el.repeats[atRepeats+1]"
       v-for="i in num"
 
-      :repeats=repeats
       :x=xPos(i)
       :y=yPos(i)
       :rotation=rot(i)
 
       :atRepeats=atRepeats+1
-      :at-num="i"
-      :relevant-room-element=relevantRoomElement
-      v-bind=repeats[atRepeats+1]
+      :el=el
+      :room=room
+      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+      @maybeShow="(e: DragStartEvent) => $emit('maybeShow', e)"
   />
   <g v-else v-for="i in num">
+    <DragNg v-if="translating"
+        @dragStart="(e: MouseEvent) => $emit('dragStart', {coord: el.base, event: e})"
+        @maybeShow="(e: MouseEvent) => $emit('maybeShow', {el: el, room: room, event: e})"
+    >
+      <TeamTable
+          :x=xPos(i)??0
+          :y=yPos(i)??0
+          :rotation=rot(i)??0
+
+          :team-id="''+(140+i)"
+      />
+    </DragNg>
     <TeamTable
+        v-else
         :x=xPos(i)??0
         :y=yPos(i)??0
         :rotation=rot(i)??0
 
         :team-id="''+(140+i)"
-        :relevant-room-element=relevantRoomElement
-    />
-    <Draggable
-        v-if="(i===1 && atRepeats<=repeats.length-1 && atNum===1)"
-        :x=xPos(i)??0
-        :y=yPos(i)??0
-        :rotation=rot(i)??0
-        :relevant-room-element=relevantRoomElement
     />
   </g>
 
@@ -36,43 +43,40 @@
 <script setup lang="ts">
 
 import TeamTable from "./TeamTable.vue";
-import Draggable from "../../views/Draggable.vue";
 import {computed} from "vue";
+import {
+  Coordinate,
+  DragStartEvent, ElementInterface, RoomInterface,
+  RotationCoordinate,
+  SequenceAxis,
+  SequenceDirection,
+  SequenceInterface,
+  SequenceType
+} from "../../types.ts";
+import DragNg from "../../views/DragNg.vue";
 
-const SequenceType = {
-  // Area: "area",
-  Line: "Line",
-  Circle: "Circle",
-};
-
-const props = withDefaults(defineProps<{
-  type: string
-  x: number
-  y: number
-  rotation: number
-  radius: number
-  num: number
-  atNum: number
-  axis: boolean
-  dir: boolean
-  separation: number
-  repeats: any[]
+interface SequenceLocal {
   atRepeats: number
-  equivalentSpaced: boolean
-  relevantRoomElement: any[]
-}>(), {
-  type: "Line",
+  el: ElementInterface,
+  room: RoomInterface,
+  translating?: boolean,
+}
+
+defineEmits(['dragStart', 'maybeShow', 'maybeSelect'])
+const props = withDefaults(defineProps<RotationCoordinate & SequenceInterface & SequenceLocal
+>(), {
+  type: SequenceType.Line,
   x: 0,
   y: 0,
   rotation: 0,
   radius: 100,
   num: 1,
-  atNum: 1,
-  axis: true,
-  dir: true,
+  axis: SequenceAxis.Horizontal,
+  dir: SequenceDirection.Positive,
   separation: 50,
   atRepeats: 0,
-  equivalentSpaced: true
+  equivalentSpaced: true,
+  translating: false,
 });
 
 function xPos(i: number): number {
@@ -84,7 +88,7 @@ function xPos(i: number): number {
       return props.x;
     }
 
-    const base = props.x + distVec(props.rotation, props.radius, false, props.dir).x
+    const base = props.x + distVec(props.rotation, props.radius, SequenceAxis.Vertical, props.dir).x
     const rad = (props.rotation + dirInt.value * 90 + axisInt.value * trueSeparation.value * i) * Math.PI / 180;
     const offset = Math.cos(rad) * props.radius;
 
@@ -100,7 +104,7 @@ function yPos(i: number): number {
     if (i === 0) {
       return props.y;
     }
-    const base = props.y + distVec(props.rotation, props.radius, false, props.dir).y
+    const base = props.y + distVec(props.rotation, props.radius, SequenceAxis.Vertical, props.dir).y
 
     const rad = (props.rotation + dirInt.value * 90 + axisInt.value * trueSeparation.value * i) * Math.PI / 180;
     const offset = Math.sin(rad) * props.radius;
@@ -114,16 +118,12 @@ function rot(i: number): number {
     return props.rotation
   }
 
-  return props.rotation + axisInt.value * trueSeparation.value * (i-1)
+  return props.rotation + axisInt.value * trueSeparation.value * (i - 1)
 }
 
-function distVec(rotation: number, sep: number, axis: boolean, dir: boolean): {
-  x: number
-  y: number
-  rot: number
-} {
-  let offset = 90;
-  if (axis) {
+function distVec(rotation: number, sep: number, axis: SequenceAxis, dir: SequenceDirection): Coordinate {
+  let offset = -90;
+  if (axis == SequenceAxis.Horizontal) {
     offset = 0;
   }
 
@@ -131,19 +131,18 @@ function distVec(rotation: number, sep: number, axis: boolean, dir: boolean): {
   let x = Math.cos(rad)
   let y = Math.sin(rad)
 
-  if (dir) {
+  if (dir === SequenceDirection.Positive) {
     x = -x;
     y = -y;
   }
 
   const mag = Math.sqrt(x * x + y * y)
-
-  return {x: sep * x / mag, y: sep * y / mag, rot: 0};
+  return {x: sep * x / mag, y: sep * y / mag};
 }
 
 const dirVec = computed(() => distVec(props.rotation, trueSeparation.value, props.axis, props.dir))
-const axisInt = computed(() => props.axis ? 1 : -1);
-const dirInt = computed(() => props.dir ? 1 : -1);
+const axisInt = computed(() => props.axis == SequenceAxis.Horizontal ? 1 : -1);
+const dirInt = computed(() => props.dir == SequenceDirection.Negative ? 1 : -1);
 const trueSeparation = computed(() => (props.type !== SequenceType.Circle || !props.equivalentSpaced)
     ? props.separation : 360 / Math.max(1, props.num))
 

@@ -1,5 +1,5 @@
 <template>
-  <g :transform="posCalc()" ref="slot" class="team-area">
+  <g :transform="posCalc()" class="team-area">
     <rect
         class="element background"
         :x="settings.areaX"
@@ -46,11 +46,6 @@
         :height="settings.areaHeight"/>
     />
   </g>
-  <Hatching
-      :dist="settings.areaWidth/20"
-      :stroke="settings.areaWidth/15"
-
-  />
 
 </template>
 
@@ -67,9 +62,8 @@ text {
 }
 
 .background {
-  fill: url(#diagonalHatch);
+  fill: url(#selectedHatching);
 }
-
 
 .element rect {
   stroke: #444;
@@ -80,7 +74,7 @@ text {
   stroke-linejoin: miter;
   stroke-miterlimit: 4;
   fill-rule: nonzero;
-  opacity: 1;
+  opacity: 0.1;
 
   fill: #fff;
 }
@@ -131,35 +125,46 @@ rect.outline {
 
 </style>
 
-<script setup>
+<script setup lang="ts">
 
-// import {mapStores} from 'pinia'
 import {teamareaStore} from "../../stores/teamarea";
-import {defineProps, onMounted, ref} from "vue";
-import {storeToRefs} from "pinia";
-import Hatching from "./Hatching.vue";
+import {onMounted, ref} from "vue";
+import {RotationCoordinate} from "../../types.ts";
 
-const props = defineProps({
-  'x': {type: Number, required: true},
-  'y': {type: Number, required: true},
-  'rotation': {type: Number, required: false, default: 0},
-  'teamId': {type: String, required: false},
-  'relevant-room-element': {type: Array, required: true},
-})
+interface StatusBooleans{
+  team?: boolean
+  host?: boolean
+  used?: boolean
+  seen?: boolean
+}
 
-let group = ref(null)
+const props = withDefaults(defineProps<RotationCoordinate & StatusBooleans & { 'teamId': string }>(), {
+  rotation: 0
+});
 
-function posCalc() {
+
+// const fill = computed(() => {
+//   if ((team && host) || !used) {
+//     return "white"
+//   }
+//
+//   return "orange"
+//
+//
+// });
+
+
+function posCalc(): string {
   return `translate(${props.x}, ${props.y}) rotate(${props.rotation})`
 }
 
-function seatX(i) {
+function seatX(i: number): number {
   return settings.tableX + settings.seatPadding
       + i * (settings.seatWidth + settings.seatSep + settings.seatPadding);
 }
 
 const settings = teamareaStore()
-const {strokeWidth} = storeToRefs(settings)
+// const {strokeWidth} = storeToRefs(settings)
 
 onMounted(() => {
   settings.registerTeamId(props.teamId)
