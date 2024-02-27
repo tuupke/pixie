@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
-import {reactive} from "vue";
-import {RouterView} from 'vue-router'
+import {reactive, ref, watch} from "vue";
+import {RouterView, useRoute} from 'vue-router'
 
 const items = reactive<{
   label: string
@@ -29,14 +29,26 @@ const items = reactive<{
     icon: 'pi pi-fw pi-cog'
   }
 ])
+
+const route = useRoute();
+
+const activeMenuItemIndex = ref(0);
+
+watch(
+    () => route.path,
+    (updatedPath) => {
+      activeMenuItemIndex.value = items.findIndex((item) => item.to.startsWith(updatedPath));
+    },
+    { immediate: true }
+);
 </script>
 
 <template>
   <div class="app-wrapper">
-    <TabMenu :model="items">
+    <TabMenu :model="items" :active-index="activeMenuItemIndex">
       <template #item="{ item, props }">
         <router-link v-slot="{ href, navigate }" :to="item.to" custom>
-          <a v-ripple :href="href" v-bind="props.action" @click="navigate">
+          <a :href="href" v-bind="props.action" @click="navigate">
             <span v-bind="props.icon" />
             <span v-bind="props.label">{{ item.label }}</span>
           </a>
