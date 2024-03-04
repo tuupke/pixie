@@ -111,15 +111,7 @@
             <g :transform="'scale('+scale+') translate('+(-settings.areaX)+','+(-settings.areaY)+')'">
               <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100"/>
               <circle :cx=0.5 :cy=0.5 r="3" fill="orange"/>
-              <g transform="translate(0, -11) rotate(45)">
-                <svg xmlns="http://www.w3.org/2000/svg" class="translate">
-                  <circle class="stroked" fill="white" stroke="blue" cx="8" cy="8" r="6"/>
-                  <path class="stroked" fill="none" stroke="blue" d="M 8 0 L 8 6.5"/>
-                  <path class="stroked" fill="none" stroke="blue" d="M 0 8 L 6.5 8"/>
-                  <path class="stroked" fill="none" stroke="blue" d="M 8 9.5 L 8 16"/>
-                  <path class="stroked" fill="none" stroke="blue" d="M 9.5 8 L 16 8"/>
-                </svg>
-              </g>
+              <Crosshairs />
             </g>
           </svg>
         </div>
@@ -146,6 +138,7 @@ import {teamareaStore} from "../stores/teamarea";
 import {computed, onMounted, ref, watch} from "vue";
 import {useKeyModifier} from '@vueuse/core';
 import {storeToRefs} from "pinia";
+import Crosshairs from "../components/Layout/Crosshairs.vue";
 
 const settings = teamareaStore()
 const control = useKeyModifier('Control')

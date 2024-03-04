@@ -38,7 +38,7 @@
         :height="settings.seatHeight"/>
 
     <rect
-        class="element outline"
+        class="element"
         :x="settings.areaX"
         :y="settings.areaY"
 
@@ -62,7 +62,7 @@ text {
 }
 
 .background {
-  fill: url(#selectedHatching);
+  fill: v-bind(fill);
 }
 
 .element rect {
@@ -128,8 +128,8 @@ rect.outline {
 <script setup lang="ts">
 
 import {teamareaStore} from "../../stores/teamarea";
-import {onMounted, ref} from "vue";
-import {RotationCoordinate} from "../../types.ts";
+import {computed, onMounted, ref} from "vue";
+import {RotationCoordinateInterface} from "../../types.ts";
 
 interface StatusBooleans{
   team?: boolean
@@ -138,20 +138,20 @@ interface StatusBooleans{
   seen?: boolean
 }
 
-const props = withDefaults(defineProps<RotationCoordinate & StatusBooleans & { 'teamId': string }>(), {
+const props = withDefaults(defineProps<RotationCoordinateInterface & StatusBooleans & { 'teamId': string }>(), {
   rotation: 0
 });
 
 
-// const fill = computed(() => {
-//   if ((team && host) || !used) {
-//     return "white"
-//   }
-//
-//   return "orange"
-//
-//
-// });
+const fill = computed(() => {
+  if ((props.team && props.host) || !props.used) {
+    return "white"
+  }
+
+  // url(#selectedHatching)
+
+  return "orange"
+});
 
 
 function posCalc(): string {

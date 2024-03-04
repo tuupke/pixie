@@ -8,35 +8,21 @@
       :x=xPos(i)
       :y=yPos(i)
       :rotation=rot(i)
+      :translating="translating"
 
       :atRepeats=atRepeats+1
       :el=el
       :room=room
-      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
-      @maybeShow="(e: DragStartEvent) => $emit('maybeShow', e)"
   />
-  <g v-else v-for="i in num">
-    <DragNg v-if="translating"
-        @dragStart="(e: MouseEvent) => $emit('dragStart', {coord: el.base, event: e})"
-        @maybeShow="(e: MouseEvent) => $emit('maybeShow', {el: el, room: room, event: e})"
-    >
-      <TeamTable
-          :x=xPos(i)??0
-          :y=yPos(i)??0
-          :rotation=rot(i)??0
-
-          :team-id="''+(140+i)"
-      />
-    </DragNg>
     <TeamTable
         v-else
+        v-for="i in num"
         :x=xPos(i)??0
         :y=yPos(i)??0
         :rotation=rot(i)??0
 
         :team-id="''+(140+i)"
     />
-  </g>
 
 </template>
 
@@ -45,15 +31,14 @@
 import TeamTable from "./TeamTable.vue";
 import {computed} from "vue";
 import {
-  Coordinate,
-  DragStartEvent, ElementInterface, RoomInterface,
-  RotationCoordinate,
+  CoordinateInterface,
+  ElementInterface, RoomInterface,
+  RotationCoordinateInterface,
   SequenceAxis,
   SequenceDirection,
   SequenceInterface,
   SequenceType
 } from "../../types.ts";
-import DragNg from "../../views/DragNg.vue";
 
 interface SequenceLocal {
   atRepeats: number
@@ -62,9 +47,7 @@ interface SequenceLocal {
   translating?: boolean,
 }
 
-defineEmits(['dragStart', 'maybeShow', 'maybeSelect'])
-const props = withDefaults(defineProps<RotationCoordinate & SequenceInterface & SequenceLocal
->(), {
+const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceInterface & SequenceLocal>(), {
   type: SequenceType.Line,
   x: 0,
   y: 0,
@@ -121,7 +104,7 @@ function rot(i: number): number {
   return props.rotation + axisInt.value * trueSeparation.value * (i - 1)
 }
 
-function distVec(rotation: number, sep: number, axis: SequenceAxis, dir: SequenceDirection): Coordinate {
+function distVec(rotation: number, sep: number, axis: SequenceAxis, dir: SequenceDirection): CoordinateInterface {
   let offset = -90;
   if (axis == SequenceAxis.Horizontal) {
     offset = 0;
