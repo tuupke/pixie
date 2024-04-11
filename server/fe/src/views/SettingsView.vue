@@ -1,9 +1,19 @@
 <template>
   <Toolbar class="flex-initial flex m-2">
     <template #start>
-      <Button label="New Room" icon="pi pi-plus" class="mr-2" severity="success"/>
-      <Button label="New Room element" icon="pi pi-plus" class="mr-2" severity="success"/>
-      <ToggleButton on-label="Snapped" off-label="free-form" v-model="snapToGrid"/>
+      <ToggleButton on-label="Snapped" off-label="free-form" class="mr-2" v-model="snapToGrid"/>
+      <SelectButton v-model="pathMode" :options="EditTypes" optionLabel="name" optionValue="value" class="mr-2" />
+      <Button label="Reset panzoom" class="mr-2" @click="rescale" />
+      <Button v-if="selectedRoom==null" label="New Room" icon="pi pi-plus" class="mr-2" severity="success"/>
+      <Button v-else label="New Element" icon="pi pi-plus" class="mr-2" severity="success"/>
+      <div v-if="coordinateBeingTranslated">
+        {{ coordinateBeingTranslated.x }} {{ coordinateBeingTranslated.y }}
+        {{ offset.x }} {{ offset.y }}
+      </div>
+      <div v-if="coordinateBeingRotated">
+        {{ coordinateBeingRotated.coord.x }} {{ coordinateBeingRotated.coord.y }}
+        {{ offset.x }} {{ offset.y }} {{ coordinateBeingRotated.coord.rotation }}
+      </div>
     </template>
   </Toolbar>
   <div class="settings-view-wrapper">
@@ -13,8 +23,6 @@
           <template #header>
             <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">Info</span>
-                <Button class="ml-auto" size="small" icon="pi pi-plus" severity="success" rounded
-                        outlined v-on:click.stop=""/>
             </span>
           </template>
           <div>
@@ -40,11 +48,17 @@
             <span class="flex align-items-center gap-2 w-full">
                           <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">{{ placement.room.name }}</span>
-                <Button class="ml-auto" size="small" icon="pi pi-pencil" severity="warning" rounded
-                        outlined v-on:click.stop="selectedRoom = placement.room; rescale()"/>
             </span>
             </span>
           </template>
+
+          <div class="flex flex-column gap-2">
+            <label for="placementname">Name</label>
+            <InputText  v-model="placement.room.name" aria-describedby="placementname-help" />
+            <small id="placementname-help">Enter the name of this room.</small>
+          </div>
+<!--          <Button class="ml-auto" size="small" icon="pi pi-pencil" severity="warning" rounded-->
+<!--                  outlined v-on:click.stop="selectedRoom = placement.room; rescale()"/>-->
           <div>
             Number of placed elements: {{ placement.room.elements.length }}
           </div>
@@ -57,7 +71,11 @@
               }, 0)
             }}
           </div>
-
+          <div class="mt-2">
+            <Button icon="pi pi-pencil" class="mr-2" severity="warning" label="edit"
+                    v-on:click.stop="selectedRoom = placement.room; rescale()" />
+            <Button icon="pi pi-times" :outlined="false" severity="danger" label="Delete" />
+          </div>
         </AccordionTab>
       </Accordion>
       <Accordion v-else>
@@ -176,17 +194,23 @@
               v-for="placement in map.placements"
               :coord=placement.coord
               :transform=true
-              @dragStart="dragStart"
+              @dragStart="moveStart"
               @rotateStart="rotateStart">
-            <Room v-bind="placement.room"         :x=0
-                  :y=0
-                  :rotation=0
-            />
+            <Room v-bind="placement.room" />
           </DragNg>
 
           <Room v-else v-bind="selectedRoom" :translating=true
-                @dragStart="dragStart"
+                @dragStart="moveStart"
                 @rotateStart="rotateStart"
+          />
+
+          <Path
+              v-if="selectedRoom==null"
+              v-for="p in map.paths"
+              v-bind="p"
+              :editing="pathMode===EditType.Path"
+              :scale="1/scale"
+              @dragStart="pathDrag"
           />
         </g>
         <Hatching colorA="orange" colorB="lightgreen" :dist="settings.areaWidth/20" :stroke="settings.areaWidth/15"
@@ -220,7 +244,6 @@ svg rect {
 
 import Room from "../components/Layout/Room.vue";
 import Hatching from "../components/Layout/Hatching.vue";
-import Crosshairs from "../components/Layout/Crosshairs.vue";
 import {computed, onMounted, provide, reactive, ref} from "vue";
 import {useKeyModifier} from '@vueuse/core';
 import {
@@ -236,7 +259,7 @@ import {
 import {teamareaStore} from "../stores/teamarea";
 import {mapStore} from "../stores/map";
 import DragNg from "./DragNg.vue";
-import Sequence from "../components/Layout/Sequence.vue";
+import Path from "../components/Layout/Path.vue";
 
 provide('toInnerCoordinates', toInnerCoordinates)
 
@@ -287,10 +310,24 @@ function scroll(state: WheelEvent) {
 const confirmdelete = ref<number[]>([]);
 const snapToGrid = ref(false);
 
+enum EditType {
+  Drag,
+  Path,
+  Select,
+}
+
+const EditTypes = [
+  { name: 'Drag', value: EditType.Drag },
+  { name: 'Path', value: EditType.Path },
+  { name: 'Select', value: EditType.Select }
+];
+
+const pathMode = ref<EditType>(EditType.Path);
+
 const shift = useKeyModifier('Shift')
 const control = useKeyModifier('Control')
 
-const clamping = computed(() => ((shift.value || snapToGrid.value) ? 5 : 0) * ((control.value || snapToGrid.value) ? 3 : 1))
+const clamping = computed(() => ((shift.value || snapToGrid.value) ? 5 : 0) * ((control.value || snapToGrid.value) ? 30 : 1))
 
 function resetTranslateRotate() {
   coordinateBeingTranslated.value = null
@@ -336,9 +373,48 @@ function maybeTranslateRotate(e: MouseEvent) {
   }
 }
 
+function pathDrag(e: DragStartEvent) {
+  if (pathMode.value !== EditType.Path) {
+    return
+  }
+
+  dragStart(e)
+}
+
+function moveStart(e: DragStartEvent) {
+  if (pathMode.value !== EditType.Drag) {
+    return
+  }
+
+  dragStart(e)
+}
+
 function dragStart(e: DragStartEvent) {
-  coordinateBeingTranslated.value = e.coord
   const innerCoords = toInnerCoordinates(e.event)
+  if (pathMode.value == EditType.Path && e.event.ctrlKey) {
+
+    // startCoord
+    const startCoord = toInnerCoordinates(e.event, true)
+
+    const path = reactive({
+      start: {x: startCoord.x, y:startCoord.y},
+      end: {x: startCoord.x, y:startCoord.y}
+    })
+
+
+    if (selectedRoom.value) {
+      selectedRoom.value?.paths.push(path)
+    } else {
+      map.paths.push(path)
+    }
+
+    coordinateBeingTranslated.value = path.end;
+    offset.value = {x: e.coord.x, y: e.coord.y}
+
+    return
+  } else {
+    coordinateBeingTranslated.value = e.coord
+  }
 
   offset.value = {
     x: innerCoords.x - e.coord.x,
@@ -356,6 +432,10 @@ interface RotationAroundInterface {
 }
 
 function rotateStart(e: RotationStartEvent) {
+  if (pathMode.value !== EditType.Drag) {
+    return
+  }
+
   const rotCoord = e.coord as RotationCoordinateInterface
 
   // Maybe use these instead of the box size to calculate where someone clicked
@@ -393,6 +473,8 @@ const offset = ref<CoordinateInterface>({x: 0, y: 0});
 const coordinateBeingTranslated = ref<CoordinateInterface | null>();
 const coordinateBeingRotated = ref<RotationAroundInterface | null>();
 const scale = ref<number>(1)
+provide('scale', scale)
+
 
 const svgRef = ref()
 const innerSvgRef = ref()
@@ -416,40 +498,38 @@ function toCoord(relativeTo: CoordinateInterface): (e: MouseEvent) => Coordinate
 }
 
 // TODO extract into a 'reset panzoom' function
-onMounted(rescale)
+onMounted(rescale);
 
 function rescale() {
-  topLeft.x = 0
-  topLeft.y = 0
-  scale.value = 0
+  window.setTimeout(rescaleT, 0)
+}
 
+function rescaleT() {
   const padding = 40
-  const bbox = svgRef.value.getBBox({
+  const contentBox = svgRef.value.getBBox({
     stroke: true,
   })
 
-  // brect is the size of the entire svg canvas in screen coordinates.
-  const brect = svgRef.value.getBoundingClientRect()
-  const width = brect.width - 2 * padding
-  const height = brect.height - 2 * padding
+  const svgBox = svgRef.value.getBoundingClientRect()
+  const width = svgBox.width - 2 * padding
+  const height = svgBox.height - 2 * padding
+  const oldScale = scale.value
 
-  const scaleX = width / (bbox.width)
-  const scaleY = height / (bbox.height)
+  const scaleX = width / (contentBox.width / oldScale)
+  const scaleY = height / (contentBox.height / oldScale)
 
-  console.log('rescale', bbox, brect)
-
-  topLeft.x -= bbox.x
-  topLeft.y -= bbox.y
+  topLeft.x = -contentBox.x/scale.value + topLeft.x
+  topLeft.y = -contentBox.y/scale.value + topLeft.y
 
   // Align the map to the center
   if (scaleX <= scaleY) {
     scale.value = scaleX;
-    topLeft.y += (brect.height / scaleX - bbox.height) / 2
-    topLeft.x += padding / scale.value
+    topLeft.x += padding / scaleX
+    topLeft.y += (svgBox.height/scaleX - contentBox.height/oldScale)/2;
   } else {
     scale.value = scaleY;
-    topLeft.x += (brect.width / scaleY - bbox.width) / 2
-    topLeft.y += padding / scale.value
+    topLeft.x += (svgBox.width/scaleY - contentBox.width/oldScale)/2;
+    topLeft.y += padding / scaleY
   }
 }
 

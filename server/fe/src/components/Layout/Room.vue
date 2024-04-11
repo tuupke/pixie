@@ -1,6 +1,6 @@
 <template>
   <DragNg
-      v-for="(el) in room.elements"
+      v-for="(el, i) in room.elements"
       v-if="translating"
       :coord=el.base
       :transform="true"
@@ -27,7 +27,7 @@
   </DragNg>
   <Sequence
       v-else
-      v-for="(el) in room.elements"
+      v-for="(el, i) in room.elements"
 
       :x=el.base.x
       :y=el.base.y
@@ -53,9 +53,8 @@
       :x2=room.outline[(i+1)%room.outline.length].x
       :y2=room.outline[(i+1)%room.outline.length].y
       @click.left.stop="(e: MouseEvent) => {
-                  const coord = toInnerCoordinates(e)
-                  console.log(coord, e)
-                  room.outline.splice(i+1%room.outline.length, 0, coord)
+          if (!translating) {return};
+                  room.outline.splice(i+1%room.outline.length, 0, toInnerCoordinates(e, true))
                 }"
   />
   <DragNg v-if=translating v-for="(coord, i) in room.outline"
@@ -67,6 +66,12 @@
   >
     <Crosshairs/>
   </DragNg>
+  <Path
+      v-for="p in room.paths"
+      :editing=false
+      v-bind="p"
+      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+  />
 
 </template>
 
@@ -89,6 +94,7 @@ import {
 import {teamareaStore} from "../../stores/teamarea";
 import DragNg from "../../views/DragNg.vue";
 import {inject, provide} from "vue";
+import Path from "./Path.vue";
 
 const settings = teamareaStore()
 
@@ -101,23 +107,5 @@ const room = withDefaults(defineProps<RoomInterface & {
 });
 
 const toInnerCoordinates = inject('toInnerCoordinates')
-//
-// function toInnerCoordinates(e: MouseEvent): Coordinate {
-//   let v = e.target
-//   while (v && v.nodeName !== "svg") {
-//     v = v.parentNode
-//   }
-//
-//   if (!v) {
-//     window.alert("Not found")
-//     return {x: 0, y: 0}
-//   }
-//
-//   const pt = v.createSVGPoint();
-//   pt.x = e.clientX //size.x+size.width/2;
-//   pt.y = e.clientY //size.y+size.height/2;
-//
-//   return {x: 0, y: 0}
-// }
 
 </script>

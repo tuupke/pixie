@@ -32,6 +32,7 @@ export interface RoomInterface {
     name: string
     outline: CoordinateInterface[]
     elements: ElementInterface[]
+    paths: PathInterface[]
 }
 
 export interface CoordinateInterface {
@@ -53,6 +54,11 @@ export interface BoxInterface {
     height: number
     x: number
     y: number
+}
+
+export interface PathInterface {
+    start: CoordinateInterface
+    end: CoordinateInterface
 }
 
 export type RotationStartEvent = DragStartEvent & BoxInterface

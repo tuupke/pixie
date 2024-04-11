@@ -41,7 +41,7 @@ export const teamareaStore = defineStore('teamarea', {
             strokeWidth: 3 as number,
 
             areaOffsetX: 50 as number,
-            areaOffsetY: 0 as number,
+            areaOffsetY: 50 as number,
 
             areaWidth: 500 as number,
             areaHeight: 300 as number,

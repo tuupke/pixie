@@ -9,42 +9,53 @@
       :y=yPos(i)
       :rotation=rot(i)
       :translating="translating"
+      :sequence-key="atRepeats < 0 ? sequenceKey : sequenceKey.concat(i)"
 
       :atRepeats=atRepeats+1
       :el=el
       :room=room
   />
+  <g v-else
+     v-for="i in num">
     <TeamTable
-        v-else
-        v-for="i in num"
         :x=xPos(i)??0
         :y=yPos(i)??0
         :rotation=rot(i)??0
+        @click="console.log(sequenceKey.concat(i))"
+        :team-id="''+(140+i)"/>
 
-        :team-id="''+(140+i)"
-    />
+    <g :transform="'translate('+xPos(i)+','+(yPos(i)+200)+')'">
+      <Crosshairs  :scale=1/scale*1.2></Crosshairs>
+    </g>
+    <g :transform="'translate('+xPos(i)+','+(yPos(i)-200)+')'">
+      <Crosshairs color="red" :scale=1/scale></Crosshairs>
+    </g>
 
+  </g>
 </template>
 
 <script setup lang="ts">
 
 import TeamTable from "./TeamTable.vue";
-import {computed} from "vue";
+import {computed, inject} from "vue";
 import {
   CoordinateInterface,
-  ElementInterface, RoomInterface,
+  ElementInterface,
+  RoomInterface,
   RotationCoordinateInterface,
   SequenceAxis,
   SequenceDirection,
   SequenceInterface,
   SequenceType
 } from "../../types.ts";
+import Crosshairs from "./Crosshairs.vue";
 
 interface SequenceLocal {
   atRepeats: number
   el: ElementInterface,
   room: RoomInterface,
   translating?: boolean,
+  sequenceKey?: number[],
 }
 
 const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceInterface & SequenceLocal>(), {
@@ -60,7 +71,10 @@ const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceInt
   atRepeats: 0,
   equivalentSpaced: true,
   translating: false,
+  sequenceKey: [],
 });
+
+const scale = inject<number>('scale')
 
 function xPos(i: number): number {
   i--;
@@ -77,6 +91,20 @@ function xPos(i: number): number {
 
     return base + offset;
   }
+}
+
+function seqKey(jj: number): number[] {
+  var newArr = [];
+  for (let i = 0; i < props.sequenceKey.length; i++) {
+    newArr[i] = props.sequenceKey[i]
+  }
+
+  // console.log(props.atRepeats)
+
+  newArr.push()
+
+  newArr[props.atRepeats + 1] = jj
+  return newArr
 }
 
 function yPos(i: number): number {

@@ -1,16 +1,19 @@
 <template>
   <g :transform=transform ref="group">
-    <rect v-bind="size" :class="{outlineRect: true, drawOutline: true}"/>
+<!--    <rect v-bind="size" :class="{outlineRect: true, drawOutline: true}"/>-->
     <g class="dragNg" ref="dragGroup"
        @mousedown.stop="(e: MouseEvent) => $emit('dragStart', {event: e, coord: coord})"
        @mouseover.stop="(e: MouseEvent) => $emit('maybeShow', {event: e, coord: coord})"
        @click.stop="(e: MouseEvent) => $emit('maybeSelect', {event: e, coord: coord})">
       <slot></slot>
     </g>
-    <rect v-if="coord.rotation != undefined && rotate" class="rotate" :x=size.width+size.x-50 :y=size.y-50 width="100"
-          height="100"
-          @mousedown.stop=rotateStart
-    />
+<!--    <rect v-if="coord.rotation != undefined && rotate" class="rotate" :x=size.width+size.x-50 :y=size.y-50 width="100"-->
+<!--          height="100"-->
+<!--          @mousedown.stop=rotateStart-->
+<!--    />-->
+    <g :transform="'translate('+(size.width+size.x)+','+size.y+')'" >
+      <Crosshairs color="orange" :scale=1/scale @mousedown.stop=rotateStart />
+    </g>
   </g>
 </template>
 
@@ -36,10 +39,12 @@
 
 <script setup lang="ts">
 
-import {computed, onMounted, reactive, ref} from "vue";
+import {computed, inject, onMounted, reactive, ref} from "vue";
 import {CoordinateInterface, RotationCoordinateInterface} from "../types.ts";
+import Crosshairs from "../components/Layout/Crosshairs.vue";
 
 const emit = defineEmits(['dragStart', 'maybeShow', 'maybeSelect', 'rotateStart'])
+const scale = inject('scale')
 
 const props = withDefaults(defineProps<{
   coord: CoordinateInterface & RotationCoordinateInterface,
