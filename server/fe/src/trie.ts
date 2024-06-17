@@ -29,6 +29,10 @@ export class Trie<K extends string | number | symbol, V = any> {
     }
 
     public getValue(key: Indexable<K>): V | undefined {
+        if (!key) {
+            return undefined;
+        }
+
         if (key.length === 0) {
             return this.#value;
         }
