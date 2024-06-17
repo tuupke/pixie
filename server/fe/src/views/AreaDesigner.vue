@@ -109,9 +109,9 @@
         <div ref="svgDiv">
           <svg width="100%" height="100%">
             <g :transform="'scale('+scale+') translate('+(-settings.areaX)+','+(-settings.areaY)+')'">
-              <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100"/>
+              <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100" used="true"/>
               <circle :cx=0.5 :cy=0.5 r="3" fill="orange"/>
-              <Crosshairs />
+              <CrossHairs />
             </g>
           </svg>
         </div>
@@ -138,7 +138,7 @@ import {teamareaStore} from "../stores/teamarea";
 import {computed, onMounted, ref, watch} from "vue";
 import {useKeyModifier} from '@vueuse/core';
 import {storeToRefs} from "pinia";
-import Crosshairs from "../components/Layout/Crosshairs.vue";
+import CrossHairs from "../components/Layout/CrossHairs.vue";
 
 const settings = teamareaStore()
 const control = useKeyModifier('Control')

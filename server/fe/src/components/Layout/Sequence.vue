@@ -1,161 +1,75 @@
 <template>
   <Sequence
       v-if="el.repeats.length -1 > atRepeats"
+      v-for="(coord, i) in coords"
 
-      v-bind="el.repeats[atRepeats+1]"
-      v-for="i in num"
+      @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
 
-      :x=xPos(i)
-      :y=yPos(i)
-      :rotation=rot(i)
-      :translating="translating"
-      :sequence-key="atRepeats < 0 ? sequenceKey : sequenceKey.concat(i)"
+      :x=coord.x
+      :y=coord.y
+      :rotation=coord.rotation
+      :sequence-key="atRepeats < 0 ? sequenceKey.concat(KeyCategory.Repeats) : sequenceKey.concat(i)"
 
       :atRepeats=atRepeats+1
       :el=el
       :room=room
   />
-  <g v-else
-     v-for="i in num">
-    <TeamTable
-        :x=xPos(i)??0
-        :y=yPos(i)??0
-        :rotation=rot(i)??0
-        @click="console.log(sequenceKey.concat(i))"
-        :team-id="''+(140+i)"/>
+  <EditableTeamTable
+      v-else
+      v-for="(c, i) in coords"
 
-    <g :transform="'translate('+xPos(i)+','+(yPos(i)+200)+')'">
-      <Crosshairs  :scale=1/scale*1.2></Crosshairs>
-    </g>
-    <g :transform="'translate('+xPos(i)+','+(yPos(i)-200)+')'">
-      <Crosshairs color="red" :scale=1/scale></Crosshairs>
-    </g>
+      @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
 
-  </g>
+      v-bind="c"
+      :sequence-key="sequenceKey.concat(i)"
+  />
 </template>
 
 <script setup lang="ts">
 
-import TeamTable from "./TeamTable.vue";
 import {computed, inject} from "vue";
 import {
-  CoordinateInterface,
+  ElementEvent,
   ElementInterface,
+  KeyCategory,
+  QualifiedKey,
   RoomInterface,
-  RotationCoordinateInterface,
-  SequenceAxis,
-  SequenceDirection,
-  SequenceInterface,
-  SequenceType
-} from "../../types.ts";
-import Crosshairs from "./Crosshairs.vue";
+  RotationCoordinateInterface} from "../../types.ts";
+import EditableTeamTable from "./EditableTeamTable.vue";
 
 interface SequenceLocal {
   atRepeats: number
   el: ElementInterface,
   room: RoomInterface,
-  translating?: boolean,
-  sequenceKey?: number[],
+  sequenceKey: QualifiedKey,
 }
 
-const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceInterface & SequenceLocal>(), {
-  type: SequenceType.Line,
+defineEmits(['hoverElement']);
+
+const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceLocal>(), {
   x: 0,
   y: 0,
   rotation: 0,
-  radius: 100,
-  num: 1,
-  axis: SequenceAxis.Horizontal,
-  dir: SequenceDirection.Positive,
-  separation: 50,
-  atRepeats: 0,
-  equivalentSpaced: true,
-  translating: false,
-  sequenceKey: [],
 });
 
-const scale = inject<number>('scale')
+const elementFromQualifiedKey = inject<(s0: QualifiedKey) => any>("elementFromQualifiedKey")!
 
-function xPos(i: number): number {
-  i--;
-  if (props.type === SequenceType.Line) {
-    return Math.round(props.x + dirVec.value.x * i);
-  } else {
-    if (i === 0) {
-      return props.x;
-    }
-
-    const base = props.x + distVec(props.rotation, props.radius, SequenceAxis.Vertical, props.dir).x
-    const rad = (props.rotation + dirInt.value * 90 + axisInt.value * trueSeparation.value * i) * Math.PI / 180;
-    const offset = Math.cos(rad) * props.radius;
-
-    return base + offset;
-  }
-}
-
-function seqKey(jj: number): number[] {
-  var newArr = [];
-  for (let i = 0; i < props.sequenceKey.length; i++) {
-    newArr[i] = props.sequenceKey[i]
+const coords = computed(() => {
+  const repeats = props.atRepeats
+  const index = props.sequenceKey.indexOf(KeyCategory.Repeats)
+  if (repeats < 0 || index < 0) {
+    return [{x: 0, y: 0, rotation: 0}]
   }
 
-  // console.log(props.atRepeats)
-
-  newArr.push()
-
-  newArr[props.atRepeats + 1] = jj
-  return newArr
-}
-
-function yPos(i: number): number {
-  i--;
-  if (props.type === SequenceType.Line) {
-    return Math.round(props.y + dirVec.value.y * i);
-  } else {
-    if (i === 0) {
-      return props.y;
-    }
-    const base = props.y + distVec(props.rotation, props.radius, SequenceAxis.Vertical, props.dir).y
-
-    const rad = (props.rotation + dirInt.value * 90 + axisInt.value * trueSeparation.value * i) * Math.PI / 180;
-    const offset = Math.sin(rad) * props.radius;
-
-    return base + offset;
-  }
-}
-
-function rot(i: number): number {
-  if (props.type === SequenceType.Line) {
-    return props.rotation
+  const simplified = props.sequenceKey.slice(0, index+1)
+  const repeatBase = elementFromQualifiedKey(simplified)
+  if (repeatBase === null || repeatBase.length <= props.atRepeats) {
+    console.log("Repeatbase not found")
+    return [{x: 0, y: 0, rotation: 0}]
   }
 
-  return props.rotation + axisInt.value * trueSeparation.value * (i - 1)
-}
-
-function distVec(rotation: number, sep: number, axis: SequenceAxis, dir: SequenceDirection): CoordinateInterface {
-  let offset = -90;
-  if (axis == SequenceAxis.Horizontal) {
-    offset = 0;
-  }
-
-  const rad = (rotation + offset) * Math.PI / 180;
-  let x = Math.cos(rad)
-  let y = Math.sin(rad)
-
-  if (dir === SequenceDirection.Positive) {
-    x = -x;
-    y = -y;
-  }
-
-  const mag = Math.sqrt(x * x + y * y)
-  return {x: sep * x / mag, y: sep * y / mag};
-}
-
-const dirVec = computed(() => distVec(props.rotation, trueSeparation.value, props.axis, props.dir))
-const axisInt = computed(() => props.axis == SequenceAxis.Horizontal ? 1 : -1);
-const dirInt = computed(() => props.dir == SequenceDirection.Negative ? 1 : -1);
-const trueSeparation = computed(() => (props.type !== SequenceType.Circle || !props.equivalentSpaced)
-    ? props.separation : 360 / Math.max(1, props.num))
+  return repeatBase[repeats].calculateAllCoordinates(props)
+})
 
 </script>
 

@@ -1,21 +1,18 @@
 <template>
   <g :transform="posCalc()" class="team-area">
     <rect
-        class="element background"
+        class="element"
+        style="fill: white"
         :x="settings.areaX"
         :y="settings.areaY"
         :width="settings.areaWidth"
         :height="settings.areaHeight"/>
-
     <rect
-        class="element"
-        :x="settings.tableX"
-        :y="settings.tableY"
-        :width="settings.tableWidth"
-        :height="settings.tableHeight"
-
-        style="overflow: visible;">
-    </rect>
+        class="background element"
+        :x="settings.areaX"
+        :y="settings.areaY"
+        :width="settings.areaWidth"
+        :height="settings.areaHeight"/>
 
     <text
         dominant-baseline="central"
@@ -57,17 +54,19 @@ text {
 
 .element {
   fill: none;
-  stroke-width: v-bind(settings.strokeWidth);
-  stroke: #444;
+  stroke-width: v-bind(outline);
+  opacity: v-bind(opacity);
+  stroke: #000;
 }
 
 .background {
   fill: v-bind(fill);
+  opacity: v-bind(backgroundOpacity);
 }
 
 .element rect {
-  stroke: #444;
-  stroke-width: v-bind(settings.strokeWidth);
+  stroke: #000;
+  stroke-width: v-bind(outline);
   stroke-dasharray: none;
   stroke-linecap: butt;
   stroke-dashoffset: 0;
@@ -80,47 +79,22 @@ text {
 }
 
 .teamtable rect {
-  stroke: #444;
-  stroke-width: v-bind(settings.strokeWidth);
+  stroke: #000;
+  stroke-width: v-bind(outline);
   stroke-dasharray: none;
   stroke-linecap: butt;
   stroke-dashoffset: 0;
   stroke-linejoin: miter;
   stroke-miterlimit: 4;
   fill-rule: nonzero;
-  opacity: 1;
-
-  fill: #fff;
 }
 
 .selectedteam rect {
   stroke-width: 2;
 }
 
-.teamtable.found rect {
-  fill: orange;
-}
-
-.teamtable.found.exists rect {
-  fill: lightgreen;
-}
-
-.teamtable.double rect {
-  opacity: 0.2;
-}
-
-.teamtable.noteam rect {
-  opacity: 0.3;
-}
-
 .teamtable:hover rect {
-  stroke-width: v-bind(settings.strokeWidth);
-}
-
-rect.outline {
-  fill: none;
-  stroke-width: v-bind(settings.strokeWidth);
-  stroke: #476cff;
+  stroke-width: v-bind(outline);
 }
 
 </style>
@@ -128,46 +102,55 @@ rect.outline {
 <script setup lang="ts">
 
 import {teamareaStore} from "../../stores/teamarea";
-import {computed, onMounted, ref} from "vue";
+import {computed, inject} from "vue";
 import {RotationCoordinateInterface} from "../../types.ts";
 
-interface StatusBooleans{
-  team?: boolean
-  host?: boolean
-  used?: boolean
-  seen?: boolean
-}
+// Three use cases, and multiple failure-modes, when showing tables exist.
+// 1. Constructing the map (handled in EditableTeamTable)
+//    1.1 The table is not attached to a path. -> lhs blue
+//    1.2 The assigned table number is not unique. -> lhs orange
+// 2. Host and team assignments
+//    2.1 The table is not attached to a team. -> lhs light blue
+//    2.2 The table is not attached to a host. -> rhs light orange
+//    2.3 A single team assigned to multiple tables. -> lhs dark blue
+//    2.4 A single host assigned to multiple tables. -> rhs dark orange
+//    2.5 Host attached, but not seen.
+// 3. Printing
+//    No failure modes, colored team tables are not acceptable.
 
-const props = withDefaults(defineProps<RotationCoordinateInterface & StatusBooleans & { 'teamId': string }>(), {
-  rotation: 0
+
+const props = withDefaults(defineProps<RotationCoordinateInterface & {
+  teamId: string
+  fill?: string
+  hidden? : boolean
+  highlighted? : boolean
+}>(), {
+  rotation: 0,
+  hidden: false,
+  highlighted: false,
+  fill: 'white',
 });
 
+const outline = computed(() => (props.highlighted ? 5 : 1) * settings.strokeWidth)
 
-const fill = computed(() => {
-  if ((props.team && props.host) || !props.used) {
-    return "white"
-  }
+const editing = inject<boolean>("editing")! ?? false
 
-  // url(#selectedHatching)
+const opacity = computed<number>(() => {
+  return props.hidden ? 1 : (editing ? 0.1 : 0)
+})
 
-  return "orange"
-});
-
+const backgroundOpacity = computed<number>(() => {
+  return props.hidden ? 0.6 : (editing ? 0 : 0)
+})
 
 function posCalc(): string {
   return `translate(${props.x}, ${props.y}) rotate(${props.rotation})`
 }
 
 function seatX(i: number): number {
-  return settings.tableX + settings.seatPadding
-      + i * (settings.seatWidth + settings.seatSep + settings.seatPadding);
+  return settings.tableX + settings.seatPadding + i * (settings.seatWidth + settings.seatSep + settings.seatPadding);
 }
 
 const settings = teamareaStore()
-// const {strokeWidth} = storeToRefs(settings)
-
-onMounted(() => {
-  settings.registerTeamId(props.teamId)
-})
 
 </script>

@@ -21,7 +21,27 @@ export interface SequenceInterface {
     radius: number,
     separation: number,
     equivalentSpaced: boolean,
+    ascending: boolean,
+    snakeGroup: number | null,
 }
+
+export enum KeyCategory {
+    Table = "table",
+    Path = "path",
+    Wall = "wall",
+    Repeats = "repeats",
+    Repeat = "repeat",
+    Placement = "placement",
+    Placements = "placements",
+    Elements = "elements",
+    Room = "room",
+    Abs = "absolute",
+    Top = "top",
+    Bottom = "bottom",
+}
+
+export type Key = KeyCategory | number
+export type QualifiedKey = Key[]
 
 export interface ElementInterface {
     base: RotationCoordinateInterface
@@ -32,7 +52,13 @@ export interface RoomInterface {
     name: string
     outline: CoordinateInterface[]
     elements: ElementInterface[]
+    overrides: [QualifiedKey, number | null][],
     paths: PathInterface[]
+}
+
+export interface PathCoordinatesInterface {
+    start: CoordinateInterface,
+    end: CoordinateInterface
 }
 
 export interface CoordinateInterface {
@@ -42,6 +68,11 @@ export interface CoordinateInterface {
 
 export type RotationCoordinateInterface = CoordinateInterface & {
     rotation: number
+}
+
+export interface ElementEvent {
+    key: QualifiedKey
+    event: MouseEvent
 }
 
 export interface DragStartEvent {
@@ -56,9 +87,18 @@ export interface BoxInterface {
     y: number
 }
 
+export type areaKey = number[]
+
+export type PathPos = areaKey | CoordinateInterface
+
+export interface PathSpec {
+    start: PathPos
+    end: PathPos
+}
+
 export interface PathInterface {
-    start: CoordinateInterface
-    end: CoordinateInterface
+    start: QualifiedKey
+    end: QualifiedKey
 }
 
 export type RotationStartEvent = DragStartEvent & BoxInterface
@@ -67,9 +107,13 @@ export class Vector implements CoordinateInterface {
     x: number = 0
     y: number = 0
 
-    constructor(x: number, y: number) {
+    constructor(x: number, y: number, rotate: number = 0) {
         this.x = x
         this.y = y
+
+        if (rotate !== 0) {
+            this.rotate(rotate)
+        }
     }
 
     rotate(angle: number): Vector {
@@ -91,6 +135,16 @@ export class Vector implements CoordinateInterface {
         const yy = this.y * this.y
 
         return Math.sqrt(xx + yy)
+    }
+
+    distance(vect: CoordinateInterface): number {
+        const x = vect.x - this.x;
+        const y = vect.y - this.y;
+        const xx = x * x
+        const yy = y * y
+
+        return Math.sqrt(xx + yy)
+
     }
 
     add(vect: CoordinateInterface): Vector {
@@ -133,75 +187,93 @@ export class Vector implements CoordinateInterface {
     }
 }
 
+export interface RotateVector {
+  v: Vector;
+  rotateBy: number;
+}
+
 export class Repeats implements SequenceInterface {
     constructor(
-        public type: SequenceType,
-        public num: number,
-        public axis: SequenceAxis,
-        public dir: SequenceDirection,
-        public radius: number,
-        public separation: number,
-        public equivalentSpaced: boolean
-    ) {
+        public type: SequenceType = SequenceType.Line,
+        public num: number = 1,
+        public axis: SequenceAxis = SequenceAxis.Horizontal,
+        public dir: SequenceDirection = SequenceDirection.Positive,
+        public radius: number = 0,
+        public separation: number = 0,
+        public equivalentSpaced: boolean = true,
+        public ascending: boolean = true,
+        public snakeGroup: number | null = null,
+    ) {}
+
+    trueSeparation(): number {
+        return (this.type !== SequenceType.Circle || !this.equivalentSpaced)
+            ? this.separation : 360 / Math.max(1, this.num)
     }
 
-    axisName(): string {
-        switch (this.type) {
-            case SequenceType.Line:
-                switch (this.axis) {
-                    case SequenceAxis.Horizontal:
-                        return "Horizontal"
-                    case SequenceAxis.Vertical:
-                        return "Vertical"
-                }
-                break
-            case SequenceType.Circle:
-                switch (this.axis) {
-                    case SequenceAxis.Horizontal:
-                        return "Clockwise"
-                    case SequenceAxis.Vertical:
-                        return "Counterclockwise"
-                }
-                break
+    lineVect(): RotateVector {
+        // Assume horizontal movement
+        let baseVect = new Vector(this.trueSeparation(), 0)
+        if (this.axis === SequenceAxis.Vertical) {
+            baseVect = new Vector(0, -this.trueSeparation())
         }
 
-        return 'unknown'
-    }
-
-
-    directionName(): string {
-        switch (this.type) {
-            case SequenceType.Line:
-                switch (this.axis) {
-                    case SequenceAxis.Horizontal:
-                        switch (this.dir) {
-                            case SequenceDirection.Positive:
-                                return "left"
-                            case SequenceDirection.Negative:
-                                return "right"
-                        }
-                        break
-                    case SequenceAxis.Vertical:
-                        switch (this.dir) {
-                            case SequenceDirection.Positive:
-                                return "behind"
-                            case SequenceDirection.Negative:
-                                return "in front"
-                        }
-                        break
-                }
-                break
-            case SequenceType.Circle:
-                switch (this.dir) {
-                    case SequenceDirection.Positive:
-                        return "backs"
-                    case SequenceDirection.Negative:
-                        return "fronts"
-                }
+        if (this.dir === SequenceDirection.Positive) {
+            baseVect = baseVect.multiply(-1)
         }
 
-        return 'unknown'
+        // TODO, original returned v as baseVect.rotate(props.rotation). But it should be 0 right? This has been 'pushed down' into calculateCoordinate.
+        return {v: baseVect, rotateBy: 0}
     }
 
+    circleVect(): RotateVector {
+        const orientation = this.axis == SequenceAxis.Vertical ? 1 : -1
+        const direction = this.dir == SequenceDirection.Positive ? 1 : -1
 
+        const angle = orientation*this.trueSeparation()
+        const half_angle = angle/2
+
+        const magnitude = 2*this.radius*Math.sin(half_angle*(Math.PI / 180))
+
+        return {
+            v: new Vector(0, direction).multiply(magnitude).rotate((90-half_angle)),
+            rotateBy: -angle,
+        }
+    }
+
+    calculateCoordinate(current: RotationCoordinateInterface, index: number): RotationCoordinateInterface{
+        return this.calculateCoordinates(current, index, index+1)[0]
+    }
+
+    calculateAllCoordinates(current: RotationCoordinateInterface): RotationCoordinateInterface[] {
+        return this.calculateCoordinates(current, 0, this.num)
+    }
+
+    calculateCoordinates(current: RotationCoordinateInterface, start: number, end: number): RotationCoordinateInterface[] {
+        const baseVect: RotateVector = (this.type === SequenceType.Line
+            ? this.lineVect()
+            : this.circleVect());
+
+        baseVect.v.rotate(current.rotation);
+
+        let currentVector = new Vector(current.x, current.y)
+        let currentRotation = current.rotation
+        let coordinates = Array<RotationCoordinateInterface>()
+
+        for (let i = 0; i < end; i++) {
+            if (i >= start) {
+                coordinates.push({
+                    x: currentVector.x,
+                    y: currentVector.y,
+                    rotation: currentRotation
+                })
+            }
+
+            // Update to where it should point now. Since baseVect might be 'circular' it
+            currentVector.add(baseVect.v)
+            baseVect.v.rotate(baseVect.rotateBy)
+            currentRotation+=baseVect.rotateBy
+        }
+
+        return coordinates
+    }
 }

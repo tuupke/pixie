@@ -1,26 +1,21 @@
 <template>
-  <g :transform=transform ref="group">
-<!--    <rect v-bind="size" :class="{outlineRect: true, drawOutline: true}"/>-->
-    <g class="dragNg" ref="dragGroup"
-       @mousedown.stop="(e: MouseEvent) => $emit('dragStart', {event: e, coord: coord})"
-       @mouseover.stop="(e: MouseEvent) => $emit('maybeShow', {event: e, coord: coord})"
-       @click.stop="(e: MouseEvent) => $emit('maybeSelect', {event: e, coord: coord})">
+  <g v-if="transform" :transform=coordToTransform>
+    <g class="dragNg"
+       ref="dragGroup"
+       @mousedown="(e: MouseEvent) => $emit('dragStart', {event: e, coord: coord})"
+    >
       <slot></slot>
     </g>
-<!--    <rect v-if="coord.rotation != undefined && rotate" class="rotate" :x=size.width+size.x-50 :y=size.y-50 width="100"-->
-<!--          height="100"-->
-<!--          @mousedown.stop=rotateStart-->
-<!--    />-->
-    <g :transform="'translate('+(size.width+size.x)+','+size.y+')'" >
-      <Crosshairs color="orange" :scale=1/scale @mousedown.stop=rotateStart />
-    </g>
+  </g>
+  <g ref="dragGroup" v-else>
+    <slot
+          :attrs="$attrs"
+          @mousedown="(e: MouseEvent) => $emit('dragStart', {event: e, coord: coord})"
+    />
   </g>
 </template>
 
 <style scoped>
-.dragNg:hover {
-  cursor: move;
-}
 
 .outlineRect, .drawOutline {
   fill: none;
@@ -30,21 +25,16 @@
   border: 1px solid blue !important;
 }
 
-.rotate:hover {
-  cursor: grab;
-  fill: orange;
-}
-
 </style>
 
 <script setup lang="ts">
 
-import {computed, inject, onMounted, reactive, ref} from "vue";
+import {computed, inject, onMounted, onUnmounted, reactive, ref, watch} from "vue";
 import {CoordinateInterface, RotationCoordinateInterface} from "../types.ts";
-import Crosshairs from "../components/Layout/Crosshairs.vue";
+import PlacedCrossHairs from "../components/Layout/PlacedCrossHairs.vue";
 
-const emit = defineEmits(['dragStart', 'maybeShow', 'maybeSelect', 'rotateStart'])
-const scale = inject('scale')
+const emit = defineEmits(['dragStart', 'rotateStart'])
+const scale = inject<number>('scale')!
 
 const props = withDefaults(defineProps<{
   coord: CoordinateInterface & RotationCoordinateInterface,
@@ -57,7 +47,8 @@ const props = withDefaults(defineProps<{
   transform: false,
 })
 
-const dragGroup = ref()
+const dragGroup = ref();
+
 const size = reactive<{
   width: number
   height: number
@@ -65,19 +56,17 @@ const size = reactive<{
   y: number
 }>({height: 0, width: 0, x: 0, y: 0});
 
-onMounted(rescale)
-
-const transform = computed(() => props.transform
+const coordToTransform = computed(() => props.transform
     ? 'translate(' + props.coord.x + ',' + props.coord.y + ')' + (
     props.coord.rotation !== undefined
         ? 'rotate(' + props.coord.rotation + ')'
         : '')
     : '');
 
-const group = ref()
 
 function rotateStart(e: MouseEvent) {
   const box = dragGroup.value.getBBox()
+  console.log("start")
 
   emit('rotateStart', {
     event: e,
@@ -89,7 +78,32 @@ function rotateStart(e: MouseEvent) {
   })
 }
 
+onMounted(rescale)
+onMounted(() => {
+  try {
+    const el =dragGroup.value.querySelector("#dragEl")
+    console.log(el)
+    el.addEventListener('mouseover', () => {
+      console.log('over')
+    })
+  } catch (e) {}
+})
+
+onUnmounted(() => {
+  try {
+    const el =dragGroup.value.querySelector("#dragEl")
+    console.log(el)
+    el.querySelector("#dragEl").removeEventListener('mouseover', rotateStart)
+  } catch (e) {}
+})
+
+watch(() => props.transform, rescale)
+
 function rescale() {
+  if (!props.transform) {
+    return
+  }
+
   const box = dragGroup.value.getBBox()
   size.width = box.width
   size.height = box.height

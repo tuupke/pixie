@@ -107,6 +107,9 @@ app.component('Slider', Slider)
 import Checkbox from 'primevue/checkbox'
 app.component('Checkbox', Checkbox)
 
+import MultiSelect from 'primevue/multiselect'
+app.component('MultiSelect', MultiSelect)
+
 // Local components
 import Team from './components/Team.vue'
 app.component('Team', Team)

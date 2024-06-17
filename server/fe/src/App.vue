@@ -45,7 +45,7 @@ watch(
 
 <template>
   <div class="app-wrapper">
-    <TabMenu :model="items" :active-index="activeMenuItemIndex">
+    <TabMenu class="top" :model="items" :active-index="activeMenuItemIndex">
       <template #item="{ item, props }">
         <router-link v-slot="{ href, navigate }" :to="item.to" custom>
           <a :href="href" v-bind="props.action" @click="navigate">
@@ -57,7 +57,8 @@ watch(
     </TabMenu>
 <!--    <TabMenu :model="items"/>-->
     <Toast/>
-    <RouterView/>
+    <RouterView />
+<!--    <RouterView class="content"/>-->
   </div>
 </template>
 
@@ -66,5 +67,14 @@ watch(
     display: flex;
     flex-direction: column;
     height: 100vh;
+}
+
+.top {
+  z-index: 1000000;
+}
+
+.content {
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
 }
 </style>
