@@ -12,6 +12,9 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@primeuix/styled": "^0.0.1",
+    "@primevue/auto-import-resolver": "^4.0.0-beta.5",
+    "@primevue/themes": "^4.0.0-rc.2",
     "@vue/tsconfig": "^0.5.1",
     "@vueform/slider": "^2.1.10",
     "@vueuse/core": "^10.7.2",
@@ -21,16 +24,18 @@
     "paper": "^0.12.15",
     "pinia": "^2.0.16",
     "primeflex": "^3.2.1",
-    "primeicons": "^5.0.0",
-    "primevue": "^4.0.0",
+    "primeicons": "^7.0.0",
+    "primevue": "4.0.0-rc.2",
     "qr-scanner": "^1.4.1",
-    "vue": "^3.4.19",
+    "unplugin-vue-components": "^0.27.0",
+    "vue": "^3.4.27",
     "vue-router": "^4.1.2"
   },
   "devDependencies": {
+    "@types/node": "^20.14.2",
     "@vitejs/plugin-vue": "^5.0.4",
-    "typescript": "^5.3.3",
-    "vite": "^5.1.4",
-    "vue-tsc": "^1.8.27"
+    "typescript": "^5.4.5",
+    "vite": "^5.2.13",
+    "vue-tsc": "^2.0.21"
   }
 }

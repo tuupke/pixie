@@ -1,6 +1,14 @@
 <template>
+  <Path
+      v-for="p in pathCoordinates"
+      :editing=translating
+      :start="p.start"
+      :end="p.end"
+      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+  />
+
   <g ref="roomRef">
-    <Drag
+    <Drag class="dragProp"
         v-for="(el, i) in room.elements as ElementInterface[]"
         :coord="el.base"
 
@@ -42,13 +50,6 @@
     :end="room.outline[(i+1)%room.outline.length]"
     :editing=translating
     />
-  <Path
-      v-for="p in pathCoordinates"
-      :editing=translating
-      :start="p.start"
-      :end="p.end"
-      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
-  />
 </template>
 
 <style scoped>
@@ -245,7 +246,8 @@ function keyToCoord(sequenceKey: QualifiedKey): CoordinateInterface {
   }
 
   // Last part should be top or bottom
-  return settings.offset(baseVect, settings.PathAttachDistance, repeats[element.repeats.length] == KeyCategory.Top)
+  const dy = repeats[element.repeats.length] == KeyCategory.Top ? -settings.PathAttachDistance : settings.PathAttachDistance
+  return settings.offset(baseVect, 0, dy, true)
 }
 
 const roomRef = ref(null)

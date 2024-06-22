@@ -167,9 +167,6 @@ export const mapStore = defineStore({
                             }
                         }
 
-                        if (start === 7) {
-                            debugger;
-                        }
                         const duplicate = lastValues[start] !== undefined
                         if (duplicate && value !== null) {
                             // Set the duplicate to false as well
@@ -186,7 +183,10 @@ export const mapStore = defineStore({
                             ignored: value == null,
                             duplicate: duplicate
                         });
-                        lastValues[start] = key
+
+                        if (!duplicate) {
+                            lastValues[value] = key
+                        }
 
                         snake = increment(element.repeats, base, snake)
                     }

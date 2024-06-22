@@ -1,5 +1,5 @@
 import {defineStore} from 'pinia'
-import {CoordinateInterface, RotationCoordinateInterface, Vector} from "../types.ts";
+import {RotationCoordinateInterface, Vector} from "../types.ts";
 
 export const teamareaStore = defineStore('teamarea', {
     getters: {
@@ -26,7 +26,7 @@ export const teamareaStore = defineStore('teamarea', {
                 xWidth = 2000
             }
 
-            return Math.min(this.tableHeight - 70+this.strokeWidth, xWidth)
+            return Math.min(this.tableHeight - 70 + this.strokeWidth, xWidth)
         },
 
         seatWidth(): number {
@@ -73,21 +73,36 @@ export const teamareaStore = defineStore('teamarea', {
         registerTeamId(l: string): void {
             this.maxTeamLength = Math.max(Math.floor(l.length), this.maxTeamLength);
         },
-        offset(coord: RotationCoordinateInterface, dist: number, isTop: boolean): CoordinateInterface {
-            const midFromTop = this.areaHeight * this.areaOffsetY / 100;
-            const offset = isTop ? -(dist + midFromTop) : dist + (this.areaHeight - midFromTop)
 
-            return new Vector(0, offset, coord.rotation).add(coord)
+        offset(coord: RotationCoordinateInterface, distX: number, distY: number, relativeToEdge: boolean = false): RotationCoordinateInterface {
+
+            const relEdge = relativeToEdge ? 1 : 0
+            const coordX: number = (50 - this.areaOffsetX) / 100 * this.areaWidth +
+                distX +
+                relEdge * Math.sign(distX) * this.areaWidth / 2
+
+            const coordY: number =
+                (50 - this.areaOffsetY) / 100 * this.areaHeight +
+                distY +
+                relEdge *  Math.sign(distY) * this.areaHeight / 2
+
+            const vect = new Vector(coordX, coordY, coord.rotation).add(coord)
+            return {
+                x: vect.x,
+                y: vect.y,
+                rotation: coord.rotation,
+            }
         },
 
-        cornerCoordinate(coord: RotationCoordinateInterface, top, right: boolean): CoordinateInterface {
-            const midFromTop = this.areaHeight * this.areaOffsetY / 100;
-            const offsetY = top ? -(midFromTop) : (this.areaHeight - midFromTop)
-
-            const midFromLeft = this.areaWidth * this.areaOffsetX / 100;
-            const offsetX = !right ? -(midFromLeft) : (this.areaWidth - midFromLeft)
-
-            return new Vector(offsetX, offsetY, coord.rotation).add(coord)
+        toMiddle(coord: RotationCoordinateInterface): RotationCoordinateInterface {
+            const x: number = (50 - this.areaOffsetX) / 100 * this.areaWidth
+            const y: number = (50 - this.areaOffsetY) / 100 * this.areaHeight
+            const vect = new Vector(x, y, coord.rotation).add(coord)
+            return {
+                x: vect.x,
+                y: vect.y,
+                rotation: coord.rotation,
+            }
         }
     },
 })

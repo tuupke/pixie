@@ -2,13 +2,16 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 import PrimeVue from 'primevue/config';
-import ToastService from 'primevue/toastservice';
+import Aura from '@primevue/themes/aura';
+import ToastService from "primevue/toastservice";
 import App from './App.vue'
 import router from './router'
-
 import 'primeflex/primeflex.css';
-import 'primevue/resources/themes/saga-blue/theme.css'       //theme
-import 'primevue/resources/primevue.min.css'                 //core css
+// import './assets/base.css';
+
+// import 'primevue/resources/themes/saga-blue/theme.css'       //theme
+// import 'primevue/resources/primevue.min.css'                 //core css
+
 import 'primeicons/primeicons.css'                           //icons
 import axios from "axios";
 
@@ -16,14 +19,18 @@ const app = createApp(App);
 
 app.use(createPinia())
 app.use(router)
-app.use(PrimeVue);
+app.use(PrimeVue,{
+    theme: {
+        preset: Aura,
+        options: {
+            darkModeSelector: ''
+        }
+    },
+});
 app.use(ToastService);
 
 import Button from 'primevue/button'
 app.component('Button', Button)
-
-import InputSwitch from 'primevue/inputswitch'
-app.component('InputSwitch', InputSwitch)
 
 import InputGroup from 'primevue/inputgroup'
 app.component('InputGroup', InputGroup)
@@ -42,9 +49,6 @@ app.component('InputText', InputText)
 
 import FileUpload from 'primevue/fileupload'
 app.component('FileUpload', FileUpload)
-
-import Dropdown from 'primevue/dropdown'
-app.component('Dropdown', Dropdown)
 
 import Card from 'primevue/card'
 app.component('Card', Card)
@@ -100,15 +104,21 @@ app.component('Column', Column)
 import Row from 'primevue/row'
 app.component('Row', Row)
 
-import '@vueform/slider/themes/default.css'
-import Slider from '@vueform/slider'
-app.component('Slider', Slider)
 
 import Checkbox from 'primevue/checkbox'
 app.component('Checkbox', Checkbox)
 
 import MultiSelect from 'primevue/multiselect'
 app.component('MultiSelect', MultiSelect)
+
+import AccordionHeader from 'primevue/accordionheader'
+app.component('AccordionHeader', AccordionHeader)
+
+import AccordionPanel from 'primevue/accordionpanel'
+app.component('AccordionPanel', AccordionPanel)
+
+import AccordionContent from 'primevue/accordioncontent'
+app.component('AccordionContent', AccordionContent)
 
 // Local components
 import Team from './components/Team.vue'

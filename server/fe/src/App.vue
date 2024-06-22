@@ -32,6 +32,7 @@ const items = reactive<{
 
 const route = useRoute();
 
+const active = ref(0)
 const activeMenuItemIndex = ref(0);
 
 watch(

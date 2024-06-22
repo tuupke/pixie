@@ -1,12 +1,12 @@
 <template>
   <Path
       v-if="topIntersect !== null && !assignment.ignored"
-      :start="coordinate"
+      :start="middleCoordinate"
       :end="topIntersect"
   />
   <Path
       v-if="bottomIntersect !== null && !assignment.ignored"
-      :start="coordinate"
+      :start="middleCoordinate"
       :end="bottomIntersect"
   />
 
@@ -17,7 +17,7 @@
       :highlighted="highlighted"
       :fill="fill"
       :duplicated="assignment.duplicate"
-      :hidden="!assignment.ignored"
+      :hidden="assignment.ignored"
       :path="attached && !assignment.ignored"
   />
 
@@ -43,11 +43,9 @@
 
 import {
   CoordinateInterface,
-  KeyCategory,
   PathCoordinatesInterface,
   QualifiedKey,
   RotationCoordinateInterface,
-  Vector
 } from "../../types.ts";
 import TeamTable from "./TeamTable.vue";
 import PlacedCrossHairs from "./PlacedCrossHairs.vue";
@@ -60,9 +58,10 @@ const settings = teamareaStore()
 const map = mapStore()
 
 const coordinate = withDefaults(defineProps<RotationCoordinateInterface & {
-
   sequenceKey: QualifiedKey
 }>(), {x: 0, y: 0, rotation: 0})
+
+const middleCoordinate = computed(() => settings.offset(coordinate, 0, 0));
 
 const editing = inject<boolean>("editing")! ?? false
 defineEmits(['hoverElement'])
@@ -75,12 +74,15 @@ const fill = computed(() => {
   // const hatchingColors = {blue: 'lightblue', gray: 'lightgray', green: 'lightgreen', orange: 'orange', white: 'white'}
   const colors = [];
   if (!attached.value) {
-
     colors.push('#013370')
   }
 
   if (assignment.value.duplicate) {
     colors.push('orange')
+  }
+
+  if (colors.length === 0) {
+    colors.push('white')
   }
 
   return hatchingForColors(...colors)
@@ -89,56 +91,20 @@ const fill = computed(() => {
 const highlighted = computed(() => map.keyCompare(coordinate.sequenceKey, highlightedKey.value) === 0)
 
 const showHandles = false;
-const topHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, settings.PathAttachDistance, true))
-const bottomHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, settings.PathAttachDistance, false))
+const topHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0,-settings.PathAttachDistance, true))
+const bottomHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0,settings.PathAttachDistance, true))
 
 const topIntersect = computed<CoordinateInterface | null>(() => pathIntersect({
-  start: coordinate,
-  end: settings.offset(coordinate, settings.PathDetectDistance, true)
+  start: middleCoordinate.value,
+  end: settings.offset(coordinate, 0, -settings.PathDetectDistance, true)
 }))
 
 const bottomIntersect = computed<CoordinateInterface | null>(() => pathIntersect({
-  start: coordinate,
-  end: settings.offset(coordinate, settings.PathDetectDistance, false)
+  start: middleCoordinate.value,
+  end: settings.offset(coordinate,0, settings.PathDetectDistance, true)
 }))
 
 const attached = computed<boolean>(() => topIntersect.value !== null || bottomIntersect.value !== null)
-
-const rotateableCoord = computed<CoordinateInterface>(() => {
-  const index = coordinate.sequenceKey.indexOf(KeyCategory.Repeats)
-  if (index >= 0) {
-    const repeats = map.fromQualifiedKey(coordinate.sequenceKey, coordinate.sequenceKey.length - index - 1)
-    for (let i = 0; i < repeats.length; i++) {
-      // console.log(repeats[i].num-1, coordinate.sequenceKey[index+i+1])
-      if (repeats[i].num - 1 !== coordinate.sequenceKey[index + i + 1]) {
-        return null
-      }
-    }
-  }
-
-  const coords = [
-    settings.cornerCoordinate(coordinate, true, false),
-    settings.cornerCoordinate(coordinate, true, true),
-    settings.cornerCoordinate(coordinate, false, false),
-    settings.cornerCoordinate(coordinate, false, true),
-  ];
-
-  const coord = map.fromQualifiedKey(coordinate.sequenceKey, coordinate.sequenceKey.length - index).base
-  const cvect = new Vector(coord.x, coord.y)
-
-  let maxDist = 0;
-  let maxCoord = null;
-
-  for (let i = 0; i < coords.length; i++) {
-    const ldist = cvect.distance(coords[i])
-    if (ldist - 0.001 > maxDist) {
-      maxDist = ldist
-      maxCoord = coords[i]
-    }
-  }
-
-  return maxCoord;
-})
 
 const assignment = computed<tableAssignment>(() => map.assignments.getValue(coordinate.sequenceKey) ?? {
   key: coordinate.sequenceKey,
@@ -146,9 +112,7 @@ const assignment = computed<tableAssignment>(() => map.assignments.getValue(coor
   ignored: true,
   duplicate: false,
 })
-const number = computed<string>(() => {
-  return assignment.value.ignored ?
-      '' : assignment.value?.num.toString();
-});
+
+const number = computed<string>(() => assignment.value.ignored ? '' : assignment.value?.num.toString());
 
 </script>

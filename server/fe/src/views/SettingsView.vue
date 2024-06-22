@@ -55,15 +55,15 @@
         <!--          </div>-->
         <!--        </AccordionTab>-->
 
-        <AccordionTab v-for="(placement, index) in map.placements">
-          <template #header>
+        <AccordionPanel v-for="(placement, index) in map.placements" :value="index.toString()">
+          <AccordionHeader>
             <span class="flex align-items-center gap-2 w-full">
                           <span class="flex align-items-center gap-2 w-full">
                 <span class="font-bold white-space-nowrap">{{ placement.room.name }}</span>
             </span>
             </span>
-          </template>
-
+          </AccordionHeader>
+        <AccordionContent>
           <div class="flex flex-column gap-2">
             <label for="placementname">Name</label>
             <InputText v-model="placement.room.name" aria-describedby="placementname-help"/>
@@ -92,7 +92,8 @@
                 :sequenceKey="[KeyCategory.Placements, index]"
             />
           </div>
-        </AccordionTab>
+          </AccordionContent>
+        </AccordionPanel>
       </Accordion>
       </span>
       <span v-else>
@@ -133,6 +134,7 @@
                       outlined
                       v-on:click.stop="addRepeats"/>
                   <DeleteButton
+                      v-if="highlightedKey"
                       class="ml-1"
                       :sequence-key="highlightedKey"
                       :upto="KeyCategory.Elements"
@@ -143,14 +145,16 @@
               </span>
             </template>
           <template #content>
-            <AssignmentOverview :sequenceKey="highlightedKey"></AssignmentOverview>
+            <AssignmentOverview v-if="highlightedKey" :sequenceKey="highlightedKey"></AssignmentOverview>
           </template>
           </Card>
         <Accordion v-if="highlightedKey" class="mt-2">
-          <AccordionTab
+          <AccordionPanel
               v-if="selectedElement!=null"
-              v-for="(repeat, k) in selectedElement!.repeats">
-            <template #header>
+              v-for="(repeat, k) in selectedElement!.repeats"
+              :value="k.toString()"
+          >
+            <AccordionHeader>
               <span class="flex align-items-center gap-2 w-full">
                   <span class="font-bold white-space-nowrap">R{{ k }}: {{ sequenceToString(repeat) }}</span>
                   <DeleteButton
@@ -162,7 +166,8 @@
                       :sequenceKey="[KeyCategory.Placements, selectedRoomIndex, KeyCategory.Room, KeyCategory.Elements, selectedElementIndex!, KeyCategory.Repeats, k]"
                   />
               </span>
-            </template>
+            </AccordionHeader>
+            <AccordionContent>
             <div class="flex flex-column">
               <div class="flex flex-row">
                 <div class="flex flex-shrink-0 flex-column m-2">
@@ -240,7 +245,8 @@
                 </div>
               </div>
             </div>
-          </AccordionTab>
+            </AccordionContent>
+          </AccordionPanel>
         </Accordion>
         <div v-else class="mt-2">
           Highlight an element
@@ -248,29 +254,33 @@
       </span>
     </div>
     <div class="col-9">
-      <svg style="border: 1px solid red;" id="layoutsvg" ref="svgRef" @wheel="scroll" width="100%" height="100%"
-           @mousemove="maybeTranslateRotate" @mouseup="resetTranslateRotate"
-           @mousedown="(e: MouseEvent) => dragStart({coord: topLeft, event: e})">
-        <g ref="innerSvgRef" :transform="'scale('+scale+') translate('+topLeft.x+','+topLeft.y+')'">
-          <DragNg
+      <svg style="border: 1px solid red;" id="layoutsvg" ref="svgRef" width="100%" height="100%"
+           @wheel="scroll"
+           @mousemove="maybeTranslateRotate"
+           @mouseup="resetTranslateRotate"
+           @mousedown="(e: MouseEvent) => dragStart({coord: topLeft, event: e}, true)">
+        <g :transform="'scale('+scale+') translate('+topLeft.x+','+topLeft.y+')'">
+          <rect fill="url(#pattern-circles)" :x="background.x" :y="background.y" :width="background.width"
+                :height="background.height"/>
+        </g>
+
+        <g id="innerSvgRef" ref="innerSvgRef" :transform="'scale('+scale+') translate('+topLeft.x+','+topLeft.y+')'">
+          <Drag
               v-if="selectedRoomIndex===null"
               v-for="(placement, i) in map.placements"
               :coord=placement.coord
               :transform=true
-              @dragStart="moveStart"
-              @rotateStart="rotateStart">
+              @dragStart="moveStart">
             <Room v-bind="placement.room"
                   @hoverElement="hoveringElement"
                   :sequenceKey="[KeyCategory.Placements, i]"
             />
-          </DragNg>
+          </Drag>
           <Room v-else v-bind="selectedRoom!" :translating=true
                 :sequenceKey="[KeyCategory.Placements, selectedRoomIndex]"
                 @dragStart="moveStart"
-                @rotateStart="rotateStart"
                 @hoverElement="hoveringElement"
           />
-
           <Path
               v-if="selectedRoomIndex===null"
               v-for="p in map.paths"
@@ -280,6 +290,18 @@
               @dragStart="pathDrag"
           />
         </g>
+
+        <pattern
+            id="pattern-circles"
+            :x="-circleRadius+(((1-settings.areaOffsetX/100)*settings.areaWidth)%dotSpacing)"
+            :y="-circleRadius+(((1-settings.areaOffsetY/100)*settings.areaHeight)%dotSpacing)"
+            :width="dotSpacing"
+            :height="dotSpacing"
+            patternUnits="userSpaceOnUse"
+            patternContentUnits="userSpaceOnUse">
+          <circle id="pattern-circle" :cx="circleRadius" :cy="circleRadius" :r="circleRadius" fill="#000"></circle>
+        </pattern>
+
         <Hatching
             v-for="colors in hatchings"
             :width="settings.areaWidth"
@@ -310,8 +332,8 @@ import Hatching from "../components/Layout/Hatching.vue";
 import Room from "../components/Layout/Room.vue";
 
 
-import {computed, onMounted, provide, reactive, ref} from "vue";
-import {onKeyStroke, useKeyModifier} from '@vueuse/core';
+import {computed, onMounted, provide, reactive, ref, watch} from "vue";
+import {onKeyStroke} from '@vueuse/core';
 import {
   CoordinateInterface,
   DragStartEvent,
@@ -322,7 +344,6 @@ import {
   Repeats,
   RoomInterface,
   RotationCoordinateInterface,
-  RotationStartEvent,
   SequenceAxis,
   SequenceDirection,
   SequenceInterface,
@@ -332,7 +353,7 @@ import {
 import {teamareaStore} from "../stores/teamarea";
 
 import {mapStore} from "../stores/map";
-import DragNg from "./DragNg.vue";
+import Drag from "./Drag.vue";
 import Path from "../components/Layout/Path.vue";
 import DeleteButton from "../components/Layout/DeleteButton.vue";
 import BitBoxes from "../components/Layout/BitBoxes.vue";
@@ -342,30 +363,51 @@ provide('toInnerCoordinates', toInnerCoordinates)
 
 const settings = teamareaStore()
 
+
+interface RotationAroundInterface {
+  coord: RotationCoordinateInterface
+  middle: Vector
+  toRoot: Vector
+  angle: number
+  initialAngle: number
+  root: Vector
+}
+
+const topLeft = reactive<CoordinateInterface>({x: 0, y: 0});
+const offset = ref<CoordinateInterface>({x: 0, y: 0});
+const coordinateBeingTranslated = ref<CoordinateInterface | null>();
+const coordinateBeingRotated = ref<RotationAroundInterface | null>();
+const scale = ref<number>(1)
+provide('scale', scale)
+
+const svgRef = ref()
+const innerSvgRef = ref()
+
 const map = mapStore()
+const circleRadius = computed(() => 0.9 / scale.value)
+
+const scrollLower = 0.03
+const scrollUpper = 2
 
 function scroll(state: WheelEvent) {
   // Before calculating scale, see where the cursor currently is. Needs to be kept 'constant'.
   const innerCoords = toInnerCoordinates(state)
 
-  if ((scale.value >= 3 && state.deltaY < 0) || (scale.value <= 0.03 && state.deltaY > 0)) {
-    return;
-  }
-
-  const dt = 0.06
-  const scrollDt = 1 + (state.deltaY < 0 ? dt : -dt)
+  const dt = 0.02
+  const scrollDt = 1 + (-Math.sign(state.deltaY) * dt)
 
   if (highlightedKey.value !== null) {
     const element = map.fromQualifiedKeyUpTo(highlightedKey.value, KeyCategory.Elements);
     const mouse = toInnerCoordinates(state, true)
 
-    rotateAroundBy(element.base, mouse, state.deltaY / 10)
+    rotateAroundBy(element.base, mouse, state.deltaY)
     state.stopImmediatePropagation()
     state.stopPropagation()
     return false
   }
 
-  scale.value *= scrollDt
+
+  scale.value = Math.max(Math.min(scale.value * scrollDt, scrollUpper), scrollLower)
 
   // Calculate the new top-left offset
   const newInner = toInnerCoordinates(state)
@@ -373,20 +415,26 @@ function scroll(state: WheelEvent) {
   topLeft.y += newInner.y - innerCoords.y
 }
 
-function rotateAroundBy(toRotate: RotationCoordinateInterface, around: CoordinateInterface, by: number) {
-  if (clamping.value > 1) {
-    // Determine the difference to a clamping value
-    const da = clamping.value - toRotate.rotation
+const rotated = ref(0)
 
-    // Correct for the difference to the
-    // by += da
-    //   // angle + coordinateBeingRotated.value?.initialAngle must be multiple of clamping.value
-    //   coordAngle = Math.round(coordAngle / clamping.value) * clamping.value
-    //   angle = coordAngle - coordinateBeingRotated.value?.initialAngle
+function rotateAroundBy(toRotate: RotationCoordinateInterface, around: CoordinateInterface, by: number) {
+  by /= 10
+
+  if (snapToGrid.value) {
+    rotated.value += by
+
+    if (Math.abs(rotated.value) < rotateClamping) {
+      return;
+    }
+
+    by = rotated.value
+    rotated.value = 0
+
+    const newAngle = Math.round((toRotate.rotation + by) / rotateClamping) * rotateClamping
+    by = newAngle - toRotate.rotation
   }
 
-
-  const newCoord = new Vector(toRotate.x- around.x, toRotate.y-around.y).rotate(by).add(around)
+  const newCoord = new Vector(toRotate.x - around.x, toRotate.y - around.y).rotate(by).add(around)
 
   toRotate.x = newCoord.x
   toRotate.y = newCoord.y
@@ -414,8 +462,6 @@ function addRepeats() {
   const element = map.fromQualifiedKeyUpTo(highlightedKey.value!, KeyCategory.Elements)
   element.repeats.push(new Repeats());
 }
-
-provide('sequenceToString', sequenceToString)
 
 function sequenceToString(r: SequenceInterface): string {
   let direction: string;
@@ -465,7 +511,7 @@ function sequenceToString(r: SequenceInterface): string {
 
 provide("elementFromQualifiedKey", map.fromQualifiedKey)
 
-const snapToGrid = ref(false);
+const snapToGrid = ref(true);
 
 enum EditType {
   Drag,
@@ -475,53 +521,31 @@ enum EditType {
 
 const pathMode = ref<EditType>(EditType.Drag);
 
-const shift = useKeyModifier('Shift')
-const control = useKeyModifier('Control')
-
-const clamping = computed(() => ((shift.value || snapToGrid.value) ? 5 : 0) * ((control.value || snapToGrid.value) ? 30 : 1))
-
 function resetTranslateRotate() {
+  temporarilyPreventSnapping.value = false
   coordinateBeingTranslated.value = null
   coordinateBeingRotated.value = null
   offset.value = {x: 0, y: 0}
 }
 
 function maybeTranslateRotate(e: MouseEvent) {
-  if (coordinateBeingRotated.value !== undefined && coordinateBeingRotated.value !== null) {
-    const mouse = toInnerCoordinates(e, true)
-    const mid = coordinateBeingRotated.value?.middle
-    let angle = new Vector(mouse.x - mid.x, mouse.y - mid.y).asAngle() - coordinateBeingRotated.value?.angle
-
-    let coordAngle = angle + coordinateBeingRotated.value?.initialAngle
-    if (clamping.value > 1) {
-      // angle + coordinateBeingRotated.value?.initialAngle must be multiple of clamping.value
-      coordAngle = Math.round(coordAngle / clamping.value) * clamping.value
-      angle = coordAngle - coordinateBeingRotated.value?.initialAngle
-    }
-
-    coordinateBeingRotated.value.coord.rotation = coordAngle
-
-    let newCoord = coordinateBeingRotated.value?.toRoot.copy().rotate(angle).add(coordinateBeingRotated.value?.middle)
-    coordinateBeingRotated.value.coord.x = newCoord.x
-    coordinateBeingRotated.value.coord.y = newCoord.y
-  } else if (coordinateBeingTranslated.value !== undefined && coordinateBeingTranslated.value !== null) {
-    const innerCoords = toInnerCoordinates(e)
-    let newCoord = {
-      x: innerCoords.x - offset.value.x,
-      y: innerCoords.y - offset.value.y,
-    }
-
-    // console.log(offset.value.x, offset.value.y, newCoord)
-
-    if (clamping.value > 1) {
-      const cv = clamping.value
-      newCoord.x = Math.round(newCoord.x / cv) * cv
-      newCoord.y = Math.round(newCoord.y / cv) * cv
-    }
-
-    coordinateBeingTranslated.value.x = newCoord.x
-    coordinateBeingTranslated.value.y = newCoord.y
+  if (coordinateBeingTranslated.value === undefined || coordinateBeingTranslated.value == null) {
+    return
   }
+
+  const innerCoords = toInnerCoordinates(e)
+  let newCoord = {
+    x: innerCoords.x - offset.value.x,
+    y: innerCoords.y - offset.value.y,
+  }
+
+  if (snapToGrid.value && !temporarilyPreventSnapping.value) {
+    newCoord.x = Math.round(newCoord.x / translateClamping) * translateClamping
+    newCoord.y = Math.round(newCoord.y / translateClamping) * translateClamping
+  }
+
+  coordinateBeingTranslated.value.x = newCoord.x
+  coordinateBeingTranslated.value.y = newCoord.y
 }
 
 function pathDrag(e: DragStartEvent) {
@@ -540,7 +564,10 @@ function moveStart(e: DragStartEvent) {
   dragStart(e)
 }
 
-function dragStart(e: DragStartEvent) {
+const temporarilyPreventSnapping = ref(false)
+
+function dragStart(e: DragStartEvent, preventSnapping: boolean = false) {
+  temporarilyPreventSnapping.value = preventSnapping
   const innerCoords = toInnerCoordinates(e.event)
   if (pathMode.value == EditType.Path && e.event.ctrlKey) {
 
@@ -572,68 +599,6 @@ function dragStart(e: DragStartEvent) {
   }
 }
 
-interface RotationAroundInterface {
-  coord: RotationCoordinateInterface
-  middle: Vector
-  toRoot: Vector
-  angle: number
-  initialAngle: number
-  root: Vector
-}
-
-function rotateStart(e: RotationStartEvent) {
-  if (pathMode.value !== EditType.Drag) {
-    return
-  }
-
-  const rotCoord = e.coord as RotationCoordinateInterface
-
-  // Maybe use these instead of the box size to calculate where someone clicked
-  // const handleCoords = toInnerCoordinates(e.event)
-
-  // Derivation starts at the coordinate itself
-  //  1. derives vector from coordinate to middle
-  //  2. derives angle from middle to handle
-  //  3. derives inverse of vector from coordinate to middle
-  //     i.e. from middle to coordinate by flipping signs
-  // const toMiddle = new Vector(e.width / 2 + e.x, e.height / 2 + e.y).rotate(rotCoord.rotation)
-  const toMiddle = new Vector(e.width / 2, e.height / 2).rotate(rotCoord.rotation)
-
-  const middle = new Vector(e.width / 2 + e.x, e.height / 2 + e.y);//toMiddle.copy().add(e.coord)
-  const toRoot = toMiddle.copy().multiply(-1)
-
-  randomCoord.value = middle
-
-  // calculate angle to mouse. Should be similar!
-  const mouse = toInnerCoordinates(e.event, true)
-  // mouse.x = mouse.x - topLeft.x;
-  // mouse.y = mouse.y - topLeft.y;
-  const toMouse = new Vector(mouse.x - middle.x, mouse.y - middle.y)
-  const angle = toMouse.asAngle(); // - rotCoord.rotation
-
-  coordinateBeingRotated.value = {
-    coord: rotCoord,
-    middle: middle,
-    angle: angle,
-    toRoot: toRoot,
-    initialAngle: rotCoord.rotation,
-    root: middle.copy().add(toRoot),
-  }
-}
-
-const randomCoord = ref<CoordinateInterface | null>(null)
-
-const topLeft = reactive<CoordinateInterface>({x: 0, y: 0});
-const offset = ref<CoordinateInterface>({x: 0, y: 0});
-const coordinateBeingTranslated = ref<CoordinateInterface | null>();
-const coordinateBeingRotated = ref<RotationAroundInterface | null>();
-const scale = ref<number>(1)
-provide('scale', scale)
-
-
-const svgRef = ref()
-const innerSvgRef = ref()
-
 function toInnerCoordinates(e: MouseEvent, translate: boolean = false): CoordinateInterface {
   const br = svgRef.value.getBoundingClientRect();
   return {
@@ -652,43 +617,51 @@ function toCoord(relativeTo: CoordinateInterface): (e: MouseEvent) => Coordinate
   }
 }
 
-onMounted(rescale);
-onMounted(() => {
-  window.setTimeout(() => {
-    selectedRoomIndex.value = 0
-    // selectedElementIndex.value = 0
-  }, 200)
+const rotateClamping = 15;
+const translateClamping = 100;
+// Spacing calculation uses a heuristic that look acceptable.
+const dotSpacing = computed(() => Math.max(Math.round(Math.abs(Math.log(scale.value)/Math.log(4))), 1) * translateClamping);
+const background = computed(() => {
+  if (!svgRef.value) {
+    return {x: 0, y: 0, width: 0, height: 0}
+  }
+
+  const val = svgRef.value.getBBox()
+  return {
+    x: -topLeft.x,
+    y: -topLeft.y,
+    width: val.width / scale.value,
+    height: val.height / scale.value,
+  }
 })
 
+onMounted(rescale)
 function rescale() {
-  window.setTimeout(rescaleT, 0)
-}
 
-function rescaleT() {
   const padding = 40
-  const contentBox = svgRef.value.getBBox({
+  const contentBox = innerSvgRef.value.getBBox({
     stroke: true,
   })
 
   const svgBox = svgRef.value.getBoundingClientRect()
+
   const width = svgBox.width - 2 * padding
   const height = svgBox.height - 2 * padding
-  const oldScale = scale.value
 
-  const scaleX = width / (contentBox.width / oldScale)
-  const scaleY = height / (contentBox.height / oldScale)
+  const scaleX = width / contentBox.width
+  const scaleY = height / contentBox.height
 
-  topLeft.x = -contentBox.x / scale.value + topLeft.x
-  topLeft.y = -contentBox.y / scale.value + topLeft.y
+  topLeft.x = -contentBox.x
+  topLeft.y = -contentBox.y
 
-  // Align the map to the center
+  // // Align the map to the center
   if (scaleX <= scaleY) {
     scale.value = scaleX;
     topLeft.x += padding / scaleX
-    topLeft.y += (svgBox.height / scaleX - contentBox.height / oldScale) / 2;
+    topLeft.y += (svgBox.height / scaleX - contentBox.height) / 2;
   } else {
     scale.value = scaleY;
-    topLeft.x += (svgBox.width / scaleY - contentBox.width / oldScale) / 2;
+    topLeft.x += (svgBox.width / scaleY - contentBox.width) / 2;
     topLeft.y += padding / scaleY
   }
 }
@@ -752,8 +725,7 @@ function nextElement(dir: number) {
 
 provide("highlightedKey", highlightedKey)
 
-
-const selectedRoomIndex = ref<number | null>(null);
+const selectedRoomIndex = ref<number | null>(0);
 const selectedRoom = computed<RoomInterface | null>(() => {
   return selectedRoomIndex.value === null
       ? null

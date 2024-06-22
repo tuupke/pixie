@@ -7,12 +7,20 @@
         :y="settings.areaY"
         :width="settings.areaWidth"
         :height="settings.areaHeight"/>
+
     <rect
         class="background element"
         :x="settings.areaX"
         :y="settings.areaY"
         :width="settings.areaWidth"
         :height="settings.areaHeight"/>
+
+    <rect
+        class="element"
+        :x="settings.tableX"
+        :y="settings.tableY"
+        :width="settings.tableWidth"
+        :height="settings.tableHeight"/>
 
     <text
         dominant-baseline="central"
@@ -136,11 +144,11 @@ const outline = computed(() => (props.highlighted ? 5 : 1) * settings.strokeWidt
 const editing = inject<boolean>("editing")! ?? false
 
 const opacity = computed<number>(() => {
-  return props.hidden ? 1 : (editing ? 0.1 : 0)
+  return props.hidden ? (editing ? 0.1 : 0) : 1
 })
 
 const backgroundOpacity = computed<number>(() => {
-  return props.hidden ? 0.6 : (editing ? 0 : 0)
+  return props.hidden ? (editing ? 0 : 0) : 0.6
 })
 
 function posCalc(): string {
