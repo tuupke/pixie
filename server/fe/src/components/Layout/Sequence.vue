@@ -4,6 +4,7 @@
       v-for="(coord, i) in coords"
 
       @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
+      @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)"
 
       :x=coord.x
       :y=coord.y
@@ -19,6 +20,7 @@
       v-for="(c, i) in coords"
 
       @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
+      @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)"
 
       v-bind="c"
       :sequence-key="sequenceKey.concat(i)"
@@ -33,8 +35,9 @@ import {
   ElementInterface,
   KeyCategory,
   QualifiedKey,
-  RoomInterface,
-  RotationCoordinateInterface} from "../../types.ts";
+  RoomInterface, RotateEvent,
+  RotationCoordinateInterface
+} from "../../types.ts";
 import EditableTeamTable from "./EditableTeamTable.vue";
 
 interface SequenceLocal {
@@ -44,7 +47,7 @@ interface SequenceLocal {
   sequenceKey: QualifiedKey,
 }
 
-defineEmits(['hoverElement']);
+defineEmits(['hoverElement', 'scrollElement']);
 
 const props = withDefaults(defineProps<RotationCoordinateInterface & SequenceLocal>(), {
   x: 0,

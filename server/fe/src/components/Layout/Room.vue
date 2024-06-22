@@ -14,12 +14,12 @@
 
         @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
         @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
-        @rotateStart="(e: RotationStartEvent) => $emit('rotateStart', e)"
-    >
+        @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)">
       <Sequence
           v-if="el.repeats.length>0"
 
           @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
+          @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)"
 
           :x=el.base.x
           :y=el.base.y
@@ -33,6 +33,7 @@
           v-else
 
           @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
+          @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)"
 
           :x=el.base.x
           :y=el.base.y
@@ -67,7 +68,7 @@ import {
   PathCoordinatesInterface,
   QualifiedKey,
   Repeats,
-  RoomInterface,
+  RoomInterface, RotateEvent,
   RotationCoordinateInterface,
   RotationStartEvent,
 } from "../../types.ts";
@@ -79,7 +80,7 @@ import Drag from "../../views/Drag.vue";
 
 const settings = teamareaStore()
 
-defineEmits(['dragStart', 'rotateStart', 'hoverElement'])
+defineEmits(['dragStart', 'rotateStart', 'hoverElement', 'scrollElement'])
 const pathCoordinates = computed(() => room.paths.map(pi => {
   const startCoord = keyToCoord(pi.start);
   const endCoord = keyToCoord(pi.end);

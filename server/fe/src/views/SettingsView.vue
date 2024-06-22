@@ -255,7 +255,7 @@
     </div>
     <div class="col-9">
       <svg style="border: 1px solid red;" id="layoutsvg" ref="svgRef" width="100%" height="100%"
-           @wheel="scroll"
+           @wheel.stop="scroll"
            @mousemove="maybeTranslateRotate"
            @mouseup="resetTranslateRotate"
            @mousedown="(e: MouseEvent) => dragStart({coord: topLeft, event: e}, true)">
@@ -271,14 +271,18 @@
               :coord=placement.coord
               :transform=true
               @dragStart="moveStart">
+              @scrollElement="rotateElement"
             <Room v-bind="placement.room"
                   @hoverElement="hoveringElement"
+                  @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)"
+
                   :sequenceKey="[KeyCategory.Placements, i]"
             />
           </Drag>
           <Room v-else v-bind="selectedRoom!" :translating=true
                 :sequenceKey="[KeyCategory.Placements, selectedRoomIndex]"
                 @dragStart="moveStart"
+                @scrollElement="rotateElement"
                 @hoverElement="hoveringElement"
           />
           <Path
@@ -332,7 +336,7 @@ import Hatching from "../components/Layout/Hatching.vue";
 import Room from "../components/Layout/Room.vue";
 
 
-import {computed, onMounted, provide, reactive, ref, watch} from "vue";
+import {computed, onMounted, provide, reactive, ref} from "vue";
 import {onKeyStroke} from '@vueuse/core';
 import {
   CoordinateInterface,
@@ -343,6 +347,7 @@ import {
   QualifiedKey,
   Repeats,
   RoomInterface,
+  RotateEvent,
   RotationCoordinateInterface,
   SequenceAxis,
   SequenceDirection,
@@ -396,23 +401,20 @@ function scroll(state: WheelEvent) {
   const dt = 0.02
   const scrollDt = 1 + (-Math.sign(state.deltaY) * dt)
 
-  if (highlightedKey.value !== null) {
-    const element = map.fromQualifiedKeyUpTo(highlightedKey.value, KeyCategory.Elements);
-    const mouse = toInnerCoordinates(state, true)
-
-    rotateAroundBy(element.base, mouse, state.deltaY)
-    state.stopImmediatePropagation()
-    state.stopPropagation()
-    return false
-  }
-
-
   scale.value = Math.max(Math.min(scale.value * scrollDt, scrollUpper), scrollLower)
 
   // Calculate the new top-left offset
   const newInner = toInnerCoordinates(state)
   topLeft.x += newInner.x - innerCoords.x
   topLeft.y += newInner.y - innerCoords.y
+}
+
+function rotateElement(e: RotateEvent) {
+  // Before calculating scale, see where the cursor currently is. Needs to be kept 'constant'.
+  const mouse = toInnerCoordinates(e.event, true)
+  const element = map.fromQualifiedKeyUpTo(e.key, KeyCategory.Elements);
+
+  rotateAroundBy(element.base, mouse, e.event.deltaY)
 }
 
 const rotated = ref(0)
@@ -620,7 +622,7 @@ function toCoord(relativeTo: CoordinateInterface): (e: MouseEvent) => Coordinate
 const rotateClamping = 15;
 const translateClamping = 100;
 // Spacing calculation uses a heuristic that look acceptable.
-const dotSpacing = computed(() => Math.max(Math.round(Math.abs(Math.log(scale.value)/Math.log(4))), 1) * translateClamping);
+const dotSpacing = computed(() => Math.max(Math.round(Math.abs(Math.log(scale.value) / Math.log(4))), 1) * translateClamping);
 const background = computed(() => {
   if (!svgRef.value) {
     return {x: 0, y: 0, width: 0, height: 0}
@@ -636,6 +638,7 @@ const background = computed(() => {
 })
 
 onMounted(rescale)
+
 function rescale() {
 
   const padding = 40

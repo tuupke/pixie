@@ -11,6 +11,7 @@
   />
 
   <TeamTable
+      @wheel.stop="(e: WheelEvent) => $emit('scrollElement', {key: sequenceKey, event: e})"
       @mouseover.stop="(e: MouseEvent) => $emit('hoverElement', {key: sequenceKey, event: e})"
       :team-id="number"
       :x="x" :y="y" :rotation="rotation"
@@ -42,9 +43,9 @@
 <script setup lang="ts">
 
 import {
-  CoordinateInterface,
+  CoordinateInterface, ElementEvent,
   PathCoordinatesInterface,
-  QualifiedKey,
+  QualifiedKey, RotateEvent,
   RotationCoordinateInterface,
 } from "../../types.ts";
 import TeamTable from "./TeamTable.vue";
@@ -64,7 +65,10 @@ const coordinate = withDefaults(defineProps<RotationCoordinateInterface & {
 const middleCoordinate = computed(() => settings.offset(coordinate, 0, 0));
 
 const editing = inject<boolean>("editing")! ?? false
-defineEmits(['hoverElement'])
+defineEmits<{
+  hoverElement: [ElementEvent]
+  scrollElement: [RotateEvent]
+}>()
 
 const pathIntersect = inject<(p: PathCoordinatesInterface) => CoordinateInterface>("pathIntersect")!
 const highlightedKey = inject<ref<QualifiedKey>>("highlightedKey")!

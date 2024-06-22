@@ -75,6 +75,11 @@ export interface ElementEvent {
     event: MouseEvent
 }
 
+export interface RotateEvent {
+    key: QualifiedKey
+    event: WheelEvent
+}
+
 export interface DragStartEvent {
     coord: CoordinateInterface | RotationCoordinateInterface
     event: MouseEvent
