@@ -44,12 +44,12 @@
     </Drag>
   </g>
 
-
   <Path
-    v-for="(coord, i) in room.outline"
-    :start="room.outline[i]"
-    :end="room.outline[(i+1)%room.outline.length]"
+    v-for="i in room.outline.length"
+    :start="room.outline[i-1]"
+    :end="room.outline[(i)%room.outline.length]"
     :editing=translating
+    @dragStart="e => $emit('dragStart', e)"
     />
 </template>
 
@@ -70,10 +70,9 @@ import {
   Repeats,
   RoomInterface, RotateEvent,
   RotationCoordinateInterface,
-  RotationStartEvent,
 } from "../../types.ts";
 import {teamareaStore} from "../../stores/teamarea";
-import {computed, inject, onMounted, provide, ref, watch} from "vue";
+import {computed, inject, provide, ref} from "vue";
 import Path from "./Path.vue";
 import EditableTeamTable from "./EditableTeamTable.vue";
 import Drag from "../../views/Drag.vue";
@@ -198,9 +197,11 @@ provide("pathIntersection", pathIntersection)
 
 const room = withDefaults(defineProps<RoomInterface & {
   translating?: boolean
+  coord?: RotationCoordinateInterface
   sequenceKey: QualifiedKey
 }>(), {
   translating: false,
+  coord: {x: 0, y: 0, rotation: 0},
 });
 
 provide("editing", room.translating)
@@ -253,18 +254,33 @@ function keyToCoord(sequenceKey: QualifiedKey): CoordinateInterface {
 
 const roomRef = ref(null)
 
-function deriveOutline() {
+defineExpose({deriveOutline})
+function deriveOutline(padding: number = 0, snapTo: number = 0) {
+  if (roomRef.value === null) {
+    return []
+  }
 
   const b = roomRef.value.getBBox()
-  const padding = 0
 
-  room.outline.splice(-room.outline.length)
-  room.outline.push(
-      {x: b.x - padding, y: b.y - padding},
-      {x: b.x + b.width + padding, y: b.y - padding},
-      {x: b.x + b.width + padding, y: b.y + b.height + padding},
-      {x: b.x - padding, y: b.y + b.height + padding},
-  )
+  let minx = b.x - padding
+  let maxx = b.x + b.width + padding
+  let miny = b.y - padding
+  let maxy = b.y + b.height + padding
+
+  // Skip snapping for low values, '3' arbitrary.
+  if (snapTo > 3) {
+    minx = Math.floor(minx/snapTo)*snapTo
+    maxx = Math.ceil(maxx/snapTo)*snapTo
+    miny = Math.floor(miny/snapTo)*snapTo
+    maxy = Math.ceil(maxy/snapTo)*snapTo
+  }
+
+  return [
+      {x: minx, y: miny},
+      {x: maxx, y: miny},
+      {x: maxx, y: maxy},
+      {x: minx, y: maxy},
+  ]
 }
 
 </script>

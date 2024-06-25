@@ -51,7 +51,7 @@ import {
 import TeamTable from "./TeamTable.vue";
 import PlacedCrossHairs from "./PlacedCrossHairs.vue";
 import {teamareaStore} from "../../stores/teamarea.ts";
-import {computed, inject, ref} from "vue";
+import {computed, inject, Ref, ref} from "vue";
 import Path from "./Path.vue";
 import {mapStore, tableAssignment} from "../../stores/map.ts";
 
@@ -71,9 +71,9 @@ defineEmits<{
 }>()
 
 const pathIntersect = inject<(p: PathCoordinatesInterface) => CoordinateInterface>("pathIntersect")!
-const highlightedKey = inject<ref<QualifiedKey>>("highlightedKey")!
+const highlightedKey = inject<Ref<QualifiedKey>>("highlightedKey", ref([]))
 
-const hatchingForColors = inject<(...c :string[]) => string>('hatchingForColors') ?? ((...c :string[]) => 'white')
+const hatchingForColors = inject<(...c :string[]) => string>('hatchingForColors') ?? (() => 'white')
 const fill = computed(() => {
   // const hatchingColors = {blue: 'lightblue', gray: 'lightgray', green: 'lightgreen', orange: 'orange', white: 'white'}
   const colors = [];

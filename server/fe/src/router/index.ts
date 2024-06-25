@@ -11,7 +11,13 @@ const router = createRouter({
     {
       path: '/settings/map',
       name: 'settings',
-      component: () => import('../views/SettingsView.vue')
+      component: () => import('../views/MapEditor.vue')
+    },
+    {
+      path: '/settings/map/:roomId',
+      name: 'room-editor',
+      component: () => import('../views/RoomEditor.vue'),
+      props: route => ({selectedRoomIndex: Number.parseInt(route.params.roomId)})
     },
     {
       path: '/settings/area',

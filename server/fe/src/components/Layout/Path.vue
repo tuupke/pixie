@@ -1,19 +1,22 @@
 <template>
-  <line :x1="start.x" :y1="start.y" :x2="end.x" :y2="end.y" stroke="white" stroke-width="15" stroke-linecap="round" />
-  <line :x1="start.x" :y1="start.y" :x2="end.x" :y2="end.y" stroke="gray" stroke-width="5" stroke-linecap="round" />
-  <PlacedCrossHairs
-      v-if="editing"
-      v-for="coord in [start, end]"
-      v-bind="coord"
-      :highlightable="true"
-      :scale-multiply="scaleMultiply"
-      :color="color" />
+  <line :x1="start.x" :y1="start.y" :x2="end.x" :y2="end.y" stroke="white" stroke-width="15" stroke-linecap="round"/>
+  <line :x1="start.x" :y1="start.y" :x2="end.x" :y2="end.y" stroke="gray" stroke-width="5" stroke-linecap="round"/>
+
+  <Drag v-if="editing" v-for="coord in [start, end]" :coord="coord"
+        @dragStart="e => $emit('dragStart', e)">
+    <PlacedCrossHairs
+        v-bind="coord"
+        :highlightable="true"
+        :scale-multiply="scaleMultiply"
+        :color="color"/>
+  </Drag>
 </template>
 
 <script lang="ts" setup>
 
 import {CoordinateInterface} from "../../types.ts";
 import PlacedCrossHairs from "./PlacedCrossHairs.vue";
+import Drag from "../../views/Drag.vue";
 
 withDefaults(defineProps<{
   start: CoordinateInterface,
