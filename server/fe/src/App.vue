@@ -46,7 +46,7 @@ watch(
 
 <template>
   <div class="app-wrapper">
-    <TabMenu class="top" :model="items" :active-index="activeMenuItemIndex">
+    <TabMenu class="top" :model="items" :active-index="activeMenuItemIndex" style="overflow: initial;">
       <template #item="{ item, props }">
         <router-link v-slot="{ href, navigate }" :to="item.to" custom>
           <a :href="href" v-bind="props.action" @click="navigate">

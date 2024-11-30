@@ -76,5 +76,9 @@ function setOveride(type: string, override: number | null) {
   room.overrides.push([suffix, newOverride])
 }
 
+defineExpose({
+    setOverride: setOveride,
+})
+
 
 </script>

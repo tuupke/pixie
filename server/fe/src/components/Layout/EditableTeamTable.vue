@@ -1,13 +1,13 @@
 <template>
   <Path
-      v-if="topIntersect !== null && !assignment.ignored"
+      v-if="(showHandles || topIntersect !== null) && !assignment.ignored"
       :start="middleCoordinate"
-      :end="topIntersect"
+      :end="topIntersect !== null ? topIntersect : topHandle"
   />
   <Path
-      v-if="bottomIntersect !== null && !assignment.ignored"
+      v-if="(showHandles || bottomIntersect !== null) && !assignment.ignored"
       :start="middleCoordinate"
-      :end="bottomIntersect"
+      :end="bottomIntersect !== null ? bottomIntersect : bottomHandle"
   />
 
   <TeamTable
@@ -23,7 +23,7 @@
   />
 
   <PlacedCrossHairs
-      v-if="(topIntersect !== null || showHandles) && !assignment.ignored && editing"
+      v-if="showHandles && !assignment.ignored && editing"
       v-bind="topIntersect !== null ? topIntersect : topHandle"
 
       highlightable
@@ -31,21 +31,28 @@
   />
 
   <PlacedCrossHairs
-      v-if="(bottomIntersect !== null || showHandles) && !assignment.ignored && editing"
-      v-bind="bottomIntersect ? bottomIntersect : bottomHandle"
+      v-if="showHandles && !assignment.ignored && editing"
+      v-bind="bottomIntersect !== null ? bottomIntersect : bottomHandle"
       highlightable
       :scale-multiply=0.9
       color="purple"
   />
 
+<!--  <PlacedCrossHairs v-bind="outline.northEast" color="orange"/>-->
+<!--  <PlacedCrossHairs v-bind="outline.northWest" color="green"/>-->
+<!--  <PlacedCrossHairs v-bind="outline.southWest" color="blue"/>-->
+<!--  <PlacedCrossHairs v-bind="outline.southEast" color="red"/>-->
 </template>
 
 <script setup lang="ts">
 
 import {
-  CoordinateInterface, ElementEvent,
+  CoordinateInterface,
+  ElementEvent,
+  KeyCategory,
   PathCoordinatesInterface,
-  QualifiedKey, RotateEvent,
+  QualifiedKey,
+  RotateEvent,
   RotationCoordinateInterface,
 } from "../../types.ts";
 import TeamTable from "./TeamTable.vue";
@@ -64,7 +71,8 @@ const coordinate = withDefaults(defineProps<RotationCoordinateInterface & {
 
 const middleCoordinate = computed(() => settings.offset(coordinate, 0, 0));
 
-const editing = inject<boolean>("editing")! ?? false
+const editing = inject<Ref<boolean>>("editing", ref(false))!
+
 defineEmits<{
   hoverElement: [ElementEvent]
   scrollElement: [RotateEvent]
@@ -72,8 +80,10 @@ defineEmits<{
 
 const pathIntersect = inject<(p: PathCoordinatesInterface) => CoordinateInterface>("pathIntersect")!
 const highlightedKey = inject<Ref<QualifiedKey>>("highlightedKey", ref([]))
+const hatchingForColors = inject<(...c: string[]) => string>('hatchingForColors') ?? (() => 'white')
 
-const hatchingForColors = inject<(...c :string[]) => string>('hatchingForColors') ?? (() => 'white')
+const outline = computed(() => settings.tableOutlineAtCoord(coordinate, topIntersect.value !== null, bottomIntersect.value !== null))
+
 const fill = computed(() => {
   // const hatchingColors = {blue: 'lightblue', gray: 'lightgray', green: 'lightgreen', orange: 'orange', white: 'white'}
   const colors = [];
@@ -89,14 +99,25 @@ const fill = computed(() => {
     colors.push('white')
   }
 
+  const encapsulated = [
+    outline.value.northEast,
+    outline.value.southEast,
+    outline.value.northWest,
+    outline.value.southWest
+  ].reduce((carry: boolean, c: CoordinateInterface): boolean => carry && withinOutline(c, roomOutline.value), true)
+
+  if (!encapsulated) {
+    colors.push('gray')
+  }
+
   return hatchingForColors(...colors)
 })
 
 const highlighted = computed(() => map.keyCompare(coordinate.sequenceKey, highlightedKey.value) === 0)
 
-const showHandles = false;
-const topHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0,-settings.PathAttachDistance, true))
-const bottomHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0,settings.PathAttachDistance, true))
+const showHandles = inject<boolean>("pathStart", false);
+const topHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0, -settings.PathAttachDistance, true))
+const bottomHandle = computed<CoordinateInterface>(() => settings.offset(coordinate, 0, settings.PathAttachDistance, true))
 
 const topIntersect = computed<CoordinateInterface | null>(() => pathIntersect({
   start: middleCoordinate.value,
@@ -105,7 +126,7 @@ const topIntersect = computed<CoordinateInterface | null>(() => pathIntersect({
 
 const bottomIntersect = computed<CoordinateInterface | null>(() => pathIntersect({
   start: middleCoordinate.value,
-  end: settings.offset(coordinate,0, settings.PathDetectDistance, true)
+  end: settings.offset(coordinate, 0, settings.PathDetectDistance, true)
 }))
 
 const attached = computed<boolean>(() => topIntersect.value !== null || bottomIntersect.value !== null)
@@ -118,5 +139,31 @@ const assignment = computed<tableAssignment>(() => map.assignments.getValue(coor
 })
 
 const number = computed<string>(() => assignment.value.ignored ? '' : assignment.value?.num.toString());
+const roomOutline = computed(() => map.fromQualifiedKeyUpToIncluding(coordinate.sequenceKey, KeyCategory.Room).outline ?? [])
+
+const pathIntersection = inject<(a: PathCoordinatesInterface, b: PathCoordinatesInterface) => CoordinateInterface | null>("pathIntersection", (): CoordinateInterface | null => null)
+
+function withinOutline(coord: CoordinateInterface, outline: CoordinateInterface[]): boolean {
+  if (outline.length < 2) {
+    return true
+  }
+
+  const splitLine = {
+    start: {x: coord.x, y: -Number.MAX_SAFE_INTEGER},
+    end: {x: coord.x, y: coord.y},
+  }
+
+  return outline.reduce((carry: boolean, c: CoordinateInterface, i: number, arr: CoordinateInterface[]): boolean => {
+    const next = arr[(i + 1) % arr.length]
+    const pathSegment: PathCoordinatesInterface = {
+      start: c,
+      end: next,
+    }
+
+    const intersected: boolean = pathIntersection(splitLine, pathSegment) !== null
+    return carry !== intersected
+  }, false);
+}
+
 
 </script>

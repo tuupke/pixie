@@ -12,9 +12,10 @@ import {
     SequenceAxis,
     SequenceDirection,
     SequenceInterface,
-    SequenceType,
+    SequenceType, Vector,
 } from "../types.ts";
 import {Trie} from "../trie.ts";
+import {toRaw} from "vue";
 
 export interface tableAssignment {
     key: QualifiedKey
@@ -49,20 +50,23 @@ export const mapStore = defineStore({
                         }, {
                             start: [KeyCategory.Elements, 0, KeyCategory.Repeats, 1, 2, 3, KeyCategory.Bottom],
                             end: [KeyCategory.Elements, 0, KeyCategory.Repeats, 0, 2, 3, KeyCategory.Top]
+                        }, {
+                            start: [KeyCategory.Arbitrary, -1000, 0],
+                            end: [KeyCategory.Elements, 0, KeyCategory.Repeats, 0, 2, 0, KeyCategory.Top]
                         }
                     ],
                     elements: [{
                         base: {x: 0, y: 0, rotation: 0},
                         repeats: [
-                            new Repeats(SequenceType.Line, 2, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 500, true, true, 1 << 2),
-                            new Repeats(SequenceType.Line, 3, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 1500, true, true, 1 << 2),
-                            new Repeats(SequenceType.Line, 4, SequenceAxis.Vertical, SequenceDirection.Negative, 0, 1000, true, true),
+                            new Repeats(SequenceType.Line, 2, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 180, true, true, 1 << 2),
+                            new Repeats(SequenceType.Line, 3, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 540, true, true, 1 << 2),
+                            new Repeats(SequenceType.Line, 4, SequenceAxis.Vertical, SequenceDirection.Negative, 0, 300, true, true),
                         ],
                     } as ElementInterface,
                     {
-                        base: {x: -1500, y: 800, rotation: -30},
+                        base: {x: -500, y: 200, rotation: -30},
                         repeats: [
-                            new Repeats(SequenceType.Line, 2, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 500, true),
+                            new Repeats(SequenceType.Line, 2, SequenceAxis.Horizontal, SequenceDirection.Negative, 0, 180, true),
                         ],
                     } as ElementInterface
                     ] as ElementInterface[],
@@ -132,6 +136,19 @@ export const mapStore = defineStore({
             let start: number = 0;
             let lastValues: QualifiedKey[] = [];
             this.placements.forEach((room, roomIndex) => {
+                const isArbitrary = (pi: PathInterface): boolean => pi.start[0] === KeyCategory.Arbitrary || pi.end[0] === KeyCategory.Arbitrary
+                const paths: PathInterface[] = room.room.paths.sort((a: PathInterface, b: PathInterface): number => {
+                    const aIsArbitrary = isArbitrary(a)
+                    const bIsArbitrary = isArbitrary(b)
+                    if (aIsArbitrary && bIsArbitrary) {
+                        return 0
+                    } else if (aIsArbitrary) {
+                        return 1
+                    } else {
+                        return -1
+                    }
+                })
+
                 room.room.elements.forEach((element, elementIndex) => {
                     let baseKey: QualifiedKey = [KeyCategory.Placements, roomIndex, KeyCategory.Room, KeyCategory.Elements, elementIndex];
                     if (element.repeats.length == 0) {
@@ -145,6 +162,7 @@ export const mapStore = defineStore({
 
                         return
                     }
+
 
                     baseKey.push(KeyCategory.Repeats)
                     const base: number[] = element.repeats.map((n) => n.ascending ? 0 : n.num - 1);
@@ -177,14 +195,19 @@ export const mapStore = defineStore({
                             }
                         }
 
+                        // Determine offset
+
                         t.addKey(key, {
                             key: key,
                             num: start,
                             ignored: value == null,
-                            duplicate: duplicate
+                            duplicate: duplicate,
+                            pathIntersections: paths.reduce((carry: CoordinateInterface[], pi: PathInterface): CoordinateInterface[] => {
+                                return carry
+                            }, []),
                         });
 
-                        if (!duplicate) {
+                        if (!duplicate && value !== null) {
                             lastValues[value] = key
                         }
 
@@ -193,14 +216,17 @@ export const mapStore = defineStore({
                 })
             })
 
-            // // Try and find duplicates
-            // t.forEach((value) => {
-            //
-            //     // value.num+=5
-            // })
-
             return t
-        }
+        },
+        paths() {
+            return this.placements.reduce((carry: Trie<any>, room: RoomPlacement): Trie<any> => {
+                return room.room.paths.reduce((carry: Trie<any>, pi: PathInterface): Trie<any> => {
+                    return carry
+                }, carry)
+            }, this.paths.reduce((carry: Trie<any>, pi: PathInterface): Trie<any> => {
+                return carry
+            }, new Trie<any>()))
+        },
     },
     actions: {
         keyCompare(a: QualifiedKey, b: QualifiedKey): number | null {
@@ -272,12 +298,33 @@ export const mapStore = defineStore({
 
                 const elementIndex = k.indexOf(KeyCategory.Elements)
                 const element = k[elementIndex + 1]
-                for (let i = paths.length - 1; i >= 0; i--) {
-                    const startIndex = paths[i].start.indexOf(KeyCategory.Elements)
-                    const endIndex = paths[i].end.indexOf(KeyCategory.Elements)
 
-                    if (element == paths[i].start[startIndex + 1] || element == paths[i].end[endIndex + 1]) {
-                        paths.splice(i, 1)
+                // TODO check for element
+                const repeatsIndex = k.indexOf(KeyCategory.Repeats)
+                const repeats = k[repeatsIndex + 1]
+                console.log("Removing repeatsIndex", repeats)
+
+                // Remove all paths that contain that have a non-zero value at the to-be deleted repeats.
+                // Remove the 'repeats-index' when the value is zero.
+                for (let i = paths.length - 1; i >= 0; i--) {
+                    const coords = [paths[i].start, paths[i].end]
+                    for (let j = 0; j < coords.length; j++) {
+                        const coord = coords[j]
+                        const start = coord.indexOf(KeyCategory.Elements)
+
+                        // Only consider paths of the same element
+                        if (start < 0 || coord[start+1] !== element) {
+                            continue
+                        }
+
+                        if (toRaw(coord)[start+3+repeats] > 0) {
+                            paths.splice(i, 1)
+
+                            // No need to check the other coordinate.
+                            break;
+                        } else {
+                            coord.splice(start+3+repeats, 1)
+                        }
                     }
                 }
             }

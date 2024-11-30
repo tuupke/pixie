@@ -1,20 +1,12 @@
 <template>
-  <Path
-      v-for="p in pathCoordinates"
-      :editing=translating
-      :start="p.start"
-      :end="p.end"
-      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
-  />
-
   <g ref="roomRef">
     <Drag class="dragProp"
-        v-for="(el, i) in room.elements as ElementInterface[]"
-        :coord="el.base"
+          v-for="(el, i) in room.elements as ElementInterface[]"
+          :coord="el.base"
 
-        @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
-        @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
-        @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)">
+          @hoverElement="(e: ElementEvent) => $emit('hoverElement', e)"
+          @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+          @scrollElement="(e: RotateEvent) => $emit('scrollElement', e)">
       <Sequence
           v-if="el.repeats.length>0"
 
@@ -45,15 +37,33 @@
   </g>
 
   <Path
-    v-for="i in room.outline.length"
-    :start="room.outline[i-1]"
-    :end="room.outline[(i)%room.outline.length]"
-    :editing=translating
-    @dragStart="e => $emit('dragStart', e)"
-    />
+      v-for="p in pathCoordinates"
+      :editing=translating
+      :start="p.start"
+      :end="p.end"
+      :drawStart="p.drawStart ?? p.end"
+      :drawEnd="p.drawEnd ?? p.start"
+      @newCoord="c => {console.log(c)}"
+      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+  />
+
+  <Path
+      v-for="i in room.outline.length"
+      :start="room.outline[i-1]"
+      :end="room.outline[(i)%room.outline.length]"
+      :editing=translating
+      :allowsSplit="pathStart"
+      @deleteCoord="c => deleteOutlineAt(c)"
+      @newCoord="c => room.outline.splice(i, 0, c)"
+      @dragStart="(e: DragStartEvent) => $emit('dragStart', e)"
+  />
+
 </template>
 
 <style scoped>
+* {
+  cursor: crosshair;
+}
 </style>
 
 <script setup lang="ts">
@@ -66,130 +76,102 @@ import {
   ElementInterface,
   KeyCategory,
   PathCoordinatesInterface,
+  PathInterface,
   QualifiedKey,
   Repeats,
-  RoomInterface, RotateEvent,
+  RoomInterface,
+  RotateEvent,
   RotationCoordinateInterface,
 } from "../../types.ts";
 import {teamareaStore} from "../../stores/teamarea";
-import {computed, inject, provide, ref} from "vue";
+import {computed, inject, provide, Ref, ref} from "vue";
 import Path from "./Path.vue";
 import EditableTeamTable from "./EditableTeamTable.vue";
 import Drag from "../../views/Drag.vue";
+import {dist, pathInterface, pathIntersect, pathIntersection, pointOnPath} from "../../path_math.ts";
 
 const settings = teamareaStore()
+const pathStart = inject<Ref<boolean>>('canAdd', ref<boolean>(false))
+
+function isArbitrary(pi: PathInterface): boolean {
+  return pi.start[0] === KeyCategory.Arbitrary || pi.end[0] === KeyCategory.Arbitrary
+}
 
 defineEmits(['dragStart', 'rotateStart', 'hoverElement', 'scrollElement'])
-const pathCoordinates = computed(() => room.paths.map(pi => {
+const pathCoordinates = computed(() => room.paths.sort((a, b) => {
+  const aIsArbitrary = isArbitrary(a)
+  const bIsArbitrary = isArbitrary(b)
+  if (aIsArbitrary && bIsArbitrary) {
+    return 0
+  } else if (aIsArbitrary) {
+    return 1
+  } else {
+    return -1
+  }
+}).map((pi: PathInterface) => {
   const startCoord = keyToCoord(pi.start);
   const endCoord = keyToCoord(pi.end);
+
+  if (startCoord === undefined || endCoord === undefined) {
+    keyToCoord(pi.start)
+  }
+
   const dx = startCoord.x - endCoord.x;
   const dy = startCoord.y - endCoord.y;
   const l2 = dx * dx + dy * dy;
+  const startArbitrary = pi.start[0] === KeyCategory.Arbitrary
+  const endArbitrary = pi.end[0] === KeyCategory.Arbitrary
   return {
-    start: endCoord,
-    end: startCoord,
+    start: startCoord,
+    end: endCoord,
+    drawStart: startArbitrary? null : startCoord,
+    drawEnd: endArbitrary? null : endCoord,
+    startArbitrary: startArbitrary,
+    endArbitrary: endArbitrary,
+    startDist: startArbitrary ? l2 : 0,
+    endDist: endArbitrary ? l2 : 0,
     dx: dx,
     dy: dy,
     l2: l2,
     dist: Math.sqrt(l2)
-  }
-}));
-
-function dist(a: CoordinateInterface, b: CoordinateInterface): number {
-  const dx: number = b.x - a.x;
-  const dy: number = b.y - a.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-const epsilon = 0.0001
-
-function pointOnPath(p: CoordinateInterface): boolean {
-  const threshold = 40;
-  for (let i in pathCoordinates.value) {
-    const path = pathCoordinates.value[i];
-    if (path.dist < epsilon) {
-      return dist(path.start, p) < threshold
-    }
-
-    const t = Math.max(0, Math.min(1, ((p.x - path.start.x) * path.dx + (p.y - path.start.y) * path.dy) / path.l2));
-
-    // line.sx + t * dx, line.sy + t * dy
-    const d = dist(p, {x: path.start.x + t * path.dx, y: path.start.y + t * path.dy})
-    if (d < threshold) {
-      return true
-    }
+  } as pathInterface
+}).map((pi: pathInterface, index: number, paths: pathInterface[]) => {
+  if (!pi.startArbitrary && !pi.endArbitrary) {
+    return pi
   }
 
-  return false;
-}
+  for (let i = 0; i < index; i++) {
+    const intersection = pathIntersection(pi, paths[i])
+    if (intersection === null) {
+      continue
+    }
 
+    const handle = (pi: pathInterface, intersection: CoordinateInterface): pathInterface => {
+      if (pi.startArbitrary) {
+        const startDistNew = dist(pi.start, intersection)
+        if (startDistNew < pi.startDist) {
+          pi.startDist = startDistNew
+          pi.drawStart = intersection
+        }
+      }
 
-function between(a: number, b: number, c: number): boolean {
-  const eps = 3;
-  return a - eps <= b && b <= c + eps;
-}
+      if (pi.endArbitrary) {
+        const endDistNew = dist(pi.end, intersection)
+        if (endDistNew < pi.endDist) {
+          pi.endDist = endDistNew
+          pi.drawEnd = intersection
+        }
+      }
 
-function pathIntersection(a: PathCoordinatesInterface, b: PathCoordinatesInterface): CoordinateInterface | null {
-  let x = ((a.start.x * a.end.y - a.start.y * a.end.x) * (b.start.x - b.end.x) - (a.start.x - a.end.x) * (b.start.x * b.end.y - b.start.y * b.end.x)) /
-      ((a.start.x - a.end.x) * (b.start.y - b.end.y) - (a.start.y - a.end.y) * (b.start.x - b.end.x));
-  let y = ((a.start.x * a.end.y - a.start.y * a.end.x) * (b.start.y - b.end.y) - (a.start.y - a.end.y) * (b.start.x * b.end.y - b.start.y * b.end.x)) /
-      ((a.start.x - a.end.x) * (b.start.y - b.end.y) - (a.start.y - a.end.y) * (b.start.x - b.end.x));
-  if (isNaN(x) || isNaN(y)) {
-    return null;
-  } else {
-    if (a.start.x >= a.end.x) {
-      if (!between(a.end.x, x, a.start.x)) {
-        return null;
-      }
-    } else {
-      if (!between(a.start.x, x, a.end.x)) {
-        return null;
-      }
-    }
-    if (a.start.y >= a.end.y) {
-      if (!between(a.end.y, y, a.start.y)) {
-        return null;
-      }
-    } else {
-      if (!between(a.start.y, y, a.end.y)) {
-        return null;
-      }
-    }
-    if (b.start.x >= b.end.x) {
-      if (!between(b.end.x, x, b.start.x)) {
-        return null;
-      }
-    } else {
-      if (!between(b.start.x, x, b.end.x)) {
-        return null;
-      }
-    }
-    if (b.start.y >= b.end.y) {
-      if (!between(b.end.y, y, b.start.y)) {
-        return null;
-      }
-    } else {
-      if (!between(b.start.y, y, b.end.y)) {
-        return null;
-      }
-    }
+      return pi
+    };
+
+    pi = handle(pi, intersection)
+    paths[i] = handle(paths[i], intersection)
   }
 
-  return {x: x, y: y};
-}
-
-function pathIntersect(b: PathCoordinatesInterface): CoordinateInterface | null {
-  for (let i in pathCoordinates.value) {
-    const coord = pathIntersection(pathCoordinates.value[i], b)
-    if (coord !== null) {
-      // console.log('intersect', toRaw(b.start), toRaw(b.end))
-      return coord
-    }
-  }
-
-  return null
-}
+  return pi
+}).reverse())
 
 provide("pointOnPath", pointOnPath)
 provide("pathIntersect", pathIntersect)
@@ -208,6 +190,10 @@ provide("editing", room.translating)
 const elementFromQualifiedKey = inject<(s0: QualifiedKey, offset: number) => any>("elementFromQualifiedKey")!
 
 function keyToCoord(sequenceKey: QualifiedKey): CoordinateInterface {
+  if (sequenceKey[0] === KeyCategory.Arbitrary) {
+    return {x: sequenceKey[1] as number, y: sequenceKey[2] as number}
+  }
+
   let innerKey = [...sequenceKey];
   if (innerKey[0] != KeyCategory.Placement) {
     innerKey = [...room.sequenceKey, KeyCategory.Room, ...sequenceKey];
@@ -229,32 +215,30 @@ function keyToCoord(sequenceKey: QualifiedKey): CoordinateInterface {
     throw new Error("incorrect element, has no repeats")
   }
 
-  const repeats = sequenceKey.slice(repeatStartsAt + 1)
+  const lastKey = sequenceKey[sequenceKey.length - 1]
+  const topOffset = [KeyCategory.Top, KeyCategory.Bottom].indexOf(lastKey) >= 0 ? -1 : undefined
 
-  // Should not happen
-  if (element.repeats.length > repeats.length) {
-    console.log(innerKey)
-    throw new Error(`Bounds check missed ${repeats.length} ${element.repeats.length}`)
-  }
+  const repeats = sequenceKey.slice(repeatStartsAt + 1, topOffset)
 
   // Derive the coordinate
   let baseVect: RotationCoordinateInterface = element.base
-  for (let i = 0; i < element.repeats.length; i++) {
+  for (let i = 0; i < Math.min(element.repeats.length, repeats.length); i++) {
     baseVect = (element.repeats[i] as Repeats).calculateCoordinate(baseVect, repeats[i] as number)
   }
 
-  if (element.repeats.length == repeats.length) {
+  if (topOffset === undefined) {
     return baseVect
   }
 
   // Last part should be top or bottom
-  const dy = repeats[element.repeats.length] == KeyCategory.Top ? -settings.PathAttachDistance : settings.PathAttachDistance
+  const dy = lastKey == KeyCategory.Top ? -settings.PathAttachDistance : settings.PathAttachDistance
   return settings.offset(baseVect, 0, dy, true)
 }
 
 const roomRef = ref(null)
 
 defineExpose({deriveOutline})
+
 function deriveOutline(padding: number = 0, snapTo: number = 0) {
   if (roomRef.value === null) {
     return []
@@ -269,18 +253,26 @@ function deriveOutline(padding: number = 0, snapTo: number = 0) {
 
   // Skip snapping for low values, '3' arbitrary.
   if (snapTo > 3) {
-    minx = Math.floor(minx/snapTo)*snapTo
-    maxx = Math.ceil(maxx/snapTo)*snapTo
-    miny = Math.floor(miny/snapTo)*snapTo
-    maxy = Math.ceil(maxy/snapTo)*snapTo
+    minx = Math.floor(minx / snapTo) * snapTo
+    maxx = Math.ceil(maxx / snapTo) * snapTo
+    miny = Math.floor(miny / snapTo) * snapTo
+    maxy = Math.ceil(maxy / snapTo) * snapTo
   }
 
   return [
-      {x: minx, y: miny},
-      {x: maxx, y: miny},
-      {x: maxx, y: maxy},
-      {x: minx, y: maxy},
+    {x: minx, y: miny},
+    {x: maxx, y: miny},
+    {x: maxx, y: maxy},
+    {x: minx, y: maxy},
   ]
+}
+
+function deleteOutlineAt(coord: CoordinateInterface) {
+  room.outline.splice(room.outline.indexOf(coord), 1)
+  if (room.outline.length <= 2) {
+    // Remove the entire outline, it has now become a line.
+    room.outline.splice(0, room.outline.length)
+  }
 }
 
 </script>

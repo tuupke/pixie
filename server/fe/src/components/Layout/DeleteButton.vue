@@ -26,6 +26,7 @@ function deleteElement() {
     key = key.splice(0, key.indexOf(props.upto)+2)
   }
 
+  console.log("Deleting sequenceKey", props.sequenceKey)
   map.doDelete(key)
 }
 

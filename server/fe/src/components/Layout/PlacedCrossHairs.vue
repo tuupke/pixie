@@ -1,5 +1,8 @@
 <template>
-  <g :transform="'translate('+x+','+y+')'">
+  <g :transform="'translate('+x+','+y+')'"
+     @mouseover="(e) => {if (sequenceKey !== null) $emit('hoverOverElement', sequenceKey)}"
+     @mouseout="(e) => {if (sequenceKey !== null) $emit('hoverOutElement', sequenceKey)}"
+  >
     <CrossHairs :scale="scale" highlightable v-bind="$attrs" />
   </g>
 </template>
@@ -8,9 +11,18 @@
 
 import {computed, inject} from "vue";
 import CrossHairs from "./CrossHairs.vue";
-import {CoordinateInterface} from "../../types.ts";
+import {CoordinateInterface, QualifiedKey} from "../../types.ts";
 
-const props = withDefaults(defineProps<CoordinateInterface & {scale?: number, scaleMultiply?: number}>(), {
+defineEmits<{
+  hoverOverElement: [QualifiedKey]
+  hoverOutElement: [QualifiedKey]
+}>()
+
+const props = withDefaults(defineProps<CoordinateInterface & {
+  scale?: number,
+  sequenceKey?: QualifiedKey,
+  scaleMultiply?: number
+}>(), {
   scaleMultiply: 1
 });
 const injectedScale = inject<number>("scale")!

@@ -1,66 +1,65 @@
 <template>
-  <SvgEditor v-if="selectedRoom" ref="editor">
+  <SvgEditor v-if="selectedRoom" ref="editor" @pathFinished="console.log">
+
     <template #extra-buttons>
-      <InputGroup class="ml-2">
-        <InputGroupAddon size="small">Name</InputGroupAddon>
-        <InputText v-model="selectedRoom!.name"/>
-      </InputGroup>
-      <InputGroup class="ml-2">
-        <InputGroupAddon size="small">Padding</InputGroupAddon>
-        <InputNumber
-            v-model="outlinePadding"
-            :min="0"
-            placeholder="Padding"/>
-        <ConfirmButton
-            icon="pi pi-expand"
-            label="outline"
-            severity="warn"
-            @confirmed="overrideOutline"
-        />
-      </InputGroup>
       <router-link to="/settings/map">
         <Button
-            class="ml-2 mr-3"
-            icon="pi pi-backward"
+            class="mr-2"
             label="back"
+            icon="pi pi-backward"
             severity="warning"
             outlined
         />
       </router-link>
-      {{ selectedRoom.elements.length }}<span class="pi pi-bullseye ml-2 mr-3"/>
+      {{ selectedRoom.elements.length }}<span class="pi pi-bullseye ml-1 mr-2"/>
       {{
         selectedRoom!.elements.reduce((carry: number, element: ElementInterface): number => {
           return carry + element.repeats.reduce((p, r) => {
             return p * r.num
           }, 1)
         }, 0)
-      }}<span class="pi pi-objects-column ml-2 mr-3"/>
+      }}<span class="pi pi-objects-column ml-1 mr-3"/>
+      <InputGroup class="mr-2">
+        <ConfirmButton
+            icon="pi pi-expand"
+            severity="warn"
+            @confirmed="overrideOutline"/>
+        <InputNumber
+            class="w-4rem"
+            v-model="outlinePadding"
+            :min="0"
+            placeholder="Padding"/>
+        <InputGroupAddon>{{ settings.distanceUnit }}</InputGroupAddon>
+      </InputGroup>
+
+      <span>
+        <Button icon="pi pi-plus" severity="success"/>
+      </span>
     </template>
     <template #settings>
       <Card class="mt-2">
         <template #title>
-          <span class="flex align-items-center gap-2 w-full">
-              <span class="font-bold white-space-nowrap">ELEMENT</span>
-              <Button
-                  class="ml-auto mr-1"
+           <span class="flex align-items-center gap-2 w-full">
+                  <span class="font-bold white-space-nowrap">ELEMENT</span>
+             <span class="ml-auto mr-2" v-if="highlightedKey">
+              <ConfirmButton
                   size="small"
                   icon="pi pi-plus"
                   severity="success"
-                  outlined
-                  v-on:click.stop="addRepeats"/>
+                  @confirmed="addRepeats"/>
               <DeleteButton
-                  v-if="highlightedKey"
-                  class="mr-4"
+                  class="ml-2"
                   :sequence-key="highlightedKey"
                   :upto="KeyCategory.Elements"
                   size="small"
                   icon="pi pi-trash"
-                  severity="danger"
-              />
+                  severity="danger"/>
+            </span>
           </span>
         </template>
         <template #content>
-          <AssignmentOverview v-if="highlightedKey" :sequenceKey="highlightedKey"></AssignmentOverview>
+          <AssignmentOverview v-if="highlightedKey" ref="assignmentOverview" :sequenceKey="highlightedKey"></AssignmentOverview>
+          <span v-else>Nothing selected. Hover to select an element.</span>
         </template>
       </Card>
       <Accordion v-if="highlightedKey" class="mt-2">
@@ -171,7 +170,7 @@
             :sequenceKey="[KeyCategory.Placements, selectedRoomIndex]"
             @hoverElement="hoveringElement"
             @scrollElement="rotate"
-            @dragStart="moveStart"
+            @dragStart="(e) => maybeDragStart(e, moveStart)"
       />
     </template>
   </SvgEditor>
@@ -185,6 +184,7 @@
 
 import SvgEditor from "./SvgEditor.vue";
 import {
+  DragStartEvent,
   ElementEvent,
   ElementInterface,
   Key,
@@ -201,7 +201,7 @@ import {
 import BitBoxes from "../components/Layout/BitBoxes.vue";
 import DeleteButton from "../components/Layout/DeleteButton.vue";
 import AssignmentOverview from "../components/AssignmentOverview.vue";
-import {computed, provide, ref} from "vue";
+import {computed, inject, provide, Ref, ref} from "vue";
 import {mapStore} from "../stores/map.ts";
 import {onKeyStroke} from "@vueuse/core";
 import Room from "../components/Layout/Room.vue";
@@ -211,10 +211,12 @@ import ConfirmButton from "../components/Layout/ConfirmButton.vue";
 const map = mapStore()
 const settings = teamareaStore()
 const props = defineProps<{ selectedRoomIndex: number }>()
-defineEmits<{
+const emits = defineEmits<{
   moveStart: [ElementEvent]
   scrollElement: [RotateEvent]
 }>()
+
+const assignmentOverview = ref(null)
 
 const selectedRoom = computed<RoomInterface | undefined>(() => map.fromQualifiedKey([KeyCategory.Placements, props.selectedRoomIndex, KeyCategory.Room]))
 
@@ -307,6 +309,19 @@ function addRepeats() {
   element.repeats.push(new Repeats());
 }
 
+function maybeDragStart(e: DragStartEvent, cb: (e: DragStartEvent) => void) {
+  if (editor.value !== null && assignmentOverview.value !== null) {
+    if (editor.value.canDelete) {
+      assignmentOverview.value.setOverride('Ignored', null)
+      return
+    } else if (editor.value.canAdd) {
+      assignmentOverview.value.setOverride('Automatic', null)
+      return
+    }
+  }
+
+  cb(e)
+}
 
 function sequenceToString(r: SequenceInterface): string {
   let direction: string;
@@ -392,6 +407,7 @@ function directionName(s: SequenceInterface): (t: SequenceDirection) => string {
               case SequenceDirection.Negative:
                 return "Right"
             }
+            break;
           case SequenceAxis.Vertical:
             switch (t) {
               case SequenceDirection.Positive:
@@ -399,7 +415,9 @@ function directionName(s: SequenceInterface): (t: SequenceDirection) => string {
               case SequenceDirection.Negative:
                 return "In front"
             }
+            break;
         }
+        break;
       case SequenceType.Circle:
         switch (t) {
           case SequenceDirection.Positive:

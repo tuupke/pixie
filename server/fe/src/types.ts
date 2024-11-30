@@ -38,6 +38,7 @@ export enum KeyCategory {
     Abs = "absolute",
     Top = "top",
     Bottom = "bottom",
+    Arbitrary = "arbitrary",
 }
 
 export type Key = KeyCategory | number

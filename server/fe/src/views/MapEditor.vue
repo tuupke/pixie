@@ -1,10 +1,10 @@
 <template>
   <SvgEditor>
     <template #extra-buttons>
-      <Button label="New Element" icon="pi pi-plus" class="mr-3" severity="success"/>
+      <ConfirmButton label="Room" icon="pi pi-plus" class="mr-3" severity="success" @confirmed="map.placements.push({})"/>
       {{ map.placements.length }}<span class="pi pi-map ml-1 mr-3" />
       {{
-        map.placements.reduce((totalTables, roomPlacement): number => totalTables + roomPlacement.room.elements.length, 0)
+        map.placements.reduce((totalTables, roomPlacement): number => totalTables + roomPlacement.room.elements.length ?? 0, 0)
       }}<span class="pi pi-bullseye ml-2 mr-3" />
       {{
         map.placements.reduce((totalTables, roomPlacement): number => {
@@ -22,7 +22,7 @@
           <AccordionHeader>
             <span class="flex align-items-center gap-2 w-full">
               <span class="flex align-items-center gap-2 w-full">
-                <span class="font-bold white-space-nowrap">{{ placement.room.name }}</span>
+                      <InputText v-model="placement.room.name" size="small"/>
               </span>
             </span>
 

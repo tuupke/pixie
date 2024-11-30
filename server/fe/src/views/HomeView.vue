@@ -145,6 +145,7 @@
     </template>
     <template #content>
       <table :set="fh = settingsStore.hosts.find(e => e.guid === modifyingteam.host_id)">
+        <tbody>
         <tr>
           <td>User:</td>
           <td> {{ modifyingteam.username }} ({{ modifyingteam.id }})</td>
@@ -189,6 +190,7 @@
           <td v-if="modifyingteam.host_id">{{ fh.primary_mac }}</td>
           <td v-else>--</td>
         </tr>
+        </tbody>
       </table>
 
       <div v-if="selected">

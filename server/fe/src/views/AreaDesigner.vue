@@ -83,6 +83,13 @@
           </AccordionContent>
         </AccordionPanel>
       </Accordion>
+      <SplitButton
+          label="Reset"
+          class="mt-3 ml-3"
+          @click="() => reset(false)"
+          :model="[
+        {label: 'Pixie', command: () => {reset(false)}},
+        {label: 'ICPC', command: () => {reset(true)}}]" />
     </div>
     <div class="col-9">
       <div class="gridLocal">
@@ -119,8 +126,7 @@
         <div ref="svgDiv">
           <svg width="100%" height="100%">
             <g :transform="'scale('+scale+') translate('+(-settings.areaX)+','+(-settings.areaY)+')'">
-              <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100" />
-              <!--              <circle :cx=0.5 :cy=0.5 r="3" fill="orange"/>-->
+              <TeamTable :x="0.5" :rotation="0" :y="0.5" team-id="100"/>
               <CrossHairs/>
             </g>
           </svg>
@@ -161,6 +167,23 @@ const scale = ref(1)
 
 const sliderStep = computed(() => control.value ? 1 : -1)
 
+const ignoreSetters = ref(false)
+
+function reset(isIcpc: boolean = false) {
+  // Resetting the store might trigger a re-render, which will cause the setters to be called messing up the values.
+  // To prevent this, ignore the setters for a short while.
+  ignoreSetters.value = true
+  window.setTimeout(() => {
+    ignoreSetters.value = false
+  }, 20)
+
+  if (isIcpc) {
+    settings.resetToIcpcStandard()
+  } else {
+    settings.$reset()
+  }
+}
+
 const tableY = computed({
   get() {
     return [
@@ -171,6 +194,10 @@ const tableY = computed({
     ]
   },
   set(n) {
+    if (ignoreSetters.value) {
+      return
+    }
+
     settings.areaPaddingY = n[0]
     settings.tableHeight = n[1] - n[0]
     settings.seatDist = n[2] - n[1]
@@ -186,6 +213,10 @@ const tableX = computed({
     ]
   },
   set(n) {
+    if (ignoreSetters.value) {
+      return
+    }
+
     settings.areaPaddingX = n[0]
     settings.tableWidth = n[1] - n[0]
   }
@@ -202,7 +233,7 @@ const {areaWidth, strokeWidth} = storeToRefs(settings)
 watch(areaWidth, rescale)
 watch(strokeWidth, rescale)
 
-async function rescale() {
+function rescale() {
   const svg = svgDiv.value
   const availableWidth = svg.parentNode.parentNode.offsetWidth -
       svg.previousSibling.offsetWidth
@@ -213,7 +244,6 @@ async function rescale() {
   }
 
   scale.value = newScale
-  console.log("Setting scale to: " + newScale)
 }
 
 </script>

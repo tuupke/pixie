@@ -1,13 +1,16 @@
 <template>
   <Toolbar class="flex-initial flex m-2">
-    <template #start>
+    <template #end>
       <ToggleButton on-label="Snapped" off-label="free-form" class="mr-2" v-model="snapToGrid"/>
       <Button
           label="Reset panzoom"
           class="mr-2"
+          size="small"
           @click="rescale"/>
     </template>
-    <template #end>
+    <template #start>
+<!--      {{ translateClamping }}-->
+<!--      {{ 1/scale*2 }}-->
       <slot name="extra-buttons"/>
     </template>
   </Toolbar>
@@ -22,22 +25,28 @@
            @mouseup="resetTranslateRotate"
            @mousedown="(e: MouseEvent) => dragStart({coord: topLeft, event: e}, true)">
         <g :transform="'scale('+scale+') translate('+topLeft.x+','+topLeft.y+')'">
-          <rect fill="url(#pattern-circles)" :x="background.x" :y="background.y" :width="background.width"
+          <rect v-if="snapToGrid" fill="url(#pattern-circles)" :x="background.x" :y="background.y" :width="background.width"
                 :height="background.height"/>
         </g>
 
         <g id="innerSvgRef" ref="innerSvgRef" :transform="'scale('+scale+') translate('+topLeft.x+','+topLeft.y+')'">
-          <slot
-              name="svg"
-              :rotate="rotateElement"
-              :moveStart="dragStart"
-          />
+          <slot name="svg" :rotate="rotateElement" :moveStart="dragStart"/>
+          <Path
+              v-if="pathStart!==null && pathEnd!==null"
+              :start="pathStart"
+              :end="mouseCoord"/>
+
+          <PlacedCrossHairs
+              v-if="pathStart!==null"
+              :x="pathStart.x"
+              :y="pathStart.y"/>
+
         </g>
 
         <pattern
             id="pattern-circles"
-            :x="-circleRadius+(((1-settings.areaOffsetX/100)*settings.areaWidth)%dotSpacing)"
-            :y="-circleRadius+(((1-settings.areaOffsetY/100)*settings.areaHeight)%dotSpacing)"
+            :x="-circleRadius+(((settings.areaOffsetX/100)*settings.areaWidth)%dotSpacing)"
+            :y="-circleRadius+(((settings.areaOffsetY/100)*settings.areaHeight)%dotSpacing)"
             :width="dotSpacing"
             :height="dotSpacing"
             patternUnits="userSpaceOnUse"
@@ -57,6 +66,10 @@
 </template>
 
 <style scoped>
+svg * {
+  cursor: v-bind(svgCursor);
+}
+
 svg rect {
   color: lightgray;
 }
@@ -77,16 +90,16 @@ import {
   CoordinateInterface,
   DragStartEvent,
   KeyCategory,
+  PathInterface,
   RotateEvent,
   RotationCoordinateInterface,
   Vector
 } from "../types.ts";
 import {teamareaStore} from "../stores/teamarea";
-
 import {mapStore} from "../stores/map";
+import {onKeyUp, useKeyModifier} from "@vueuse/core";
 
 const map = mapStore()
-
 const settings = teamareaStore()
 
 const topLeft = reactive<CoordinateInterface>({x: 0, y: 0});
@@ -104,15 +117,51 @@ const innerSvgRef = ref()
 
 const snapToGrid = ref(true);
 
+const gcd = (a: number, b: number): number => b == 0 ? a : gcd(b, a % b);
+const lcm = (a: number, b: number): number => a * b / gcd(a, b)
+
 // -------------------- Background --------------------
 const circleRadius = computed(() => 0.9 / scale.value)
 const rotateClamping = 15;
-const translateClamping = 100;
-defineExpose({rotateClamping, translateClamping, snapToGrid})
 
+const translateClamping = computed(() => gcd(settings.areaWidth,settings.areaHeight/10))
 
-// Spacing calculation uses a heuristic that look acceptable.
-const dotSpacing = computed(() => Math.max(Math.round(Math.abs(Math.log(scale.value) / Math.log(4))), 1) * translateClamping);
+const pathStart = ref<CoordinateInterface | null>(null)
+const pathEnd = ref<CoordinateInterface | null>(null)
+const mouseCoord = ref<CoordinateInterface | null>(null)
+
+const shift = useKeyModifier('Shift')
+const ctrl = useKeyModifier('Control')
+
+onKeyUp('Shift', () => pathStart.value = pathEnd.value = null)
+
+const pathStarted = computed(() => pathStart.value !== null)
+const canAdd = computed(() => coordinateBeingTranslated.value === null && ctrl.value && !shift.value)
+const canDelete = computed(() => coordinateBeingTranslated.value === null && ctrl.value && shift.value)
+provide('canDelete', canDelete)
+provide('canAdd', canAdd)
+
+defineExpose({
+  rotateClamping,
+  translateClamping,
+  snapToGrid,
+  canDelete,
+  canAdd
+})
+
+defineProps<{
+  paths?: PathInterface[]
+}>()
+
+const emit = defineEmits<{
+  pathFinished: [PathInterface]
+}>()
+
+const svgCursor = computed(() => canAdd.value ? 'copy' : canDelete.value ? 'not-allowed': 'default')
+
+// Spacing calculation uses a heuristic that looks acceptable.
+const dotSpacing = computed(() => translateClamping.value * Math.round(1/scale.value*2));
+// const dotSpacing = computed(() => Math.max(Math.round(Math.abs(Math.log(scale.value) / Math.log(10))), 1) * translateClamping.value);
 const background = computed(() => {
   if (!svgRef.value) {
     return {x: 0, y: 0, width: 0, height: 0}
@@ -143,7 +192,7 @@ function scroll(state: WheelEvent) {
 }
 
 function rotateElement(e: RotateEvent) {
-  // Before calculating scale, see where the cursor currently is. Needs to be kept 'constant'.
+  // Before calculating scale, see where the cursor is. Needs to remain 'constant'.
   const mouse = toInnerCoordinates(e.event, true)
   const element = map.fromQualifiedKeyUpTo(e.key, KeyCategory.Elements);
 
@@ -190,6 +239,7 @@ function hatchingForColors(...colors: string[]): string {
     // Append
     hatchings.value.push(colors)
   }
+
   return `url(#${colors.map((v) => v.replaceAll("#", "")).join("-")}-hatching)`
 }
 
@@ -199,22 +249,35 @@ function resetTranslateRotate() {
   temporarilyPreventSnapping.value = false
   coordinateBeingTranslated.value = null
   offset.value = {x: 0, y: 0}
+
+  if (pathStart.value !== null && pathEnd.value !== null) {
+    // emit('pathFinished', {start: pathStart.value, end: pathEnd.value})
+  }
+
+  pathStart.value = pathEnd.value = null
 }
 
 function maybeTranslateRotate(e: MouseEvent) {
+  const innerCoords = toInnerCoordinates(e)
+  mouseCoord.value = toInnerCoordinates(e, true)
+  if (pathStarted.value) {
+    pathEnd.value = mouseCoord.value
+    return
+  }
+
   if (coordinateBeingTranslated.value === undefined || coordinateBeingTranslated.value == null) {
     return
   }
 
-  const innerCoords = toInnerCoordinates(e)
   let newCoord = {
     x: innerCoords.x - offset.value.x,
     y: innerCoords.y - offset.value.y,
   }
 
   if (snapToGrid.value && !temporarilyPreventSnapping.value) {
-    newCoord.x = Math.round(newCoord.x / translateClamping) * translateClamping
-    newCoord.y = Math.round(newCoord.y / translateClamping) * translateClamping
+    const cv = translateClamping.value
+    newCoord.x = Math.round(newCoord.x / cv) * cv
+    newCoord.y = Math.round(newCoord.y / cv) * cv
   }
 
   coordinateBeingTranslated.value.x = newCoord.x
@@ -222,9 +285,15 @@ function maybeTranslateRotate(e: MouseEvent) {
 }
 
 const temporarilyPreventSnapping = ref(false)
+
 function dragStart(e: DragStartEvent, preventSnapping: boolean = false) {
+  if (ctrl.value) {
+    pathStart.value = toInnerCoordinates(e.event, true)
+    return
+  }
+
   temporarilyPreventSnapping.value = preventSnapping
-  const innerCoords = toInnerCoordinates(e.event)
+  const innerCoords = toInnerCoordinates(e.event,)
   coordinateBeingTranslated.value = e.coord
 
   offset.value = {
@@ -233,7 +302,21 @@ function dragStart(e: DragStartEvent, preventSnapping: boolean = false) {
   }
 }
 
-provide('toInnerCoordinates', toInnerCoordinates)
+provide('toInnerCoordinates', (e: MouseEvent): CoordinateInterface => {
+  const br = svgRef.value.getBoundingClientRect();
+  const coord = {
+    x: (e.clientX - br.left) / scale.value - topLeft.x,
+    y: (e.clientY - br.top) / scale.value - topLeft.y,
+  }
+
+  if (snapToGrid.value) {
+    const cv = translateClamping.value
+    coord.x = Math.round(coord.x / cv) * cv
+    coord.y = Math.round(coord.y / cv) * cv
+  }
+
+  return coord
+})
 
 function toInnerCoordinates(e: MouseEvent, translate: boolean = false): CoordinateInterface {
   const br = svgRef.value.getBoundingClientRect();

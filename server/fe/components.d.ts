@@ -47,6 +47,7 @@ declare module 'vue' {
     SelectButton: typeof import('primevue/selectbutton')['default']
     Sequence: typeof import('./src/components/Layout/Sequence.vue')['default']
     Slider: typeof import('primevue/slider')['default']
+    SpeedDial: typeof import('primevue/speeddial')['default']
     SplitButton: typeof import('primevue/splitbutton')['default']
     TabMenu: typeof import('primevue/tabmenu')['default']
     TabPanel: typeof import('primevue/tabpanel')['default']
